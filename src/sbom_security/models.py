@@ -29,9 +29,15 @@ class Dependency:
 
 @dataclass(frozen=True)
 class Vulnerability:
-    """A vulnerability affecting a specific dependency version."""
+    """A vulnerability affecting a specific dependency version.
+
+    ``id`` is whatever the source calls the record, often a GitHub advisory id.
+    ``aliases`` carries the other identifiers for the same issue, which is where the
+    CVE number usually appears.
+    """
 
     id: str
+    aliases: tuple[str, ...] = ()
     summary: str | None = None
     severity: str | None = None
     fixed_version: str | None = None
