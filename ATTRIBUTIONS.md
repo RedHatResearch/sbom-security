@@ -8,4 +8,4 @@ license: Apache-2.0 and MIT are compatible, AGPL is not.
 
 | Component | Source | License | Used for |
 | --------- | ------ | ------- | -------- |
-| _(none yet)_ | | | |
+| packageurl-python | https://github.com/package-url/packageurl-python | MIT | Building and parsing Package URLs |
