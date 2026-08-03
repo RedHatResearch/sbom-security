@@ -8,8 +8,19 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class PackageRef:
+    """A package at an exact version, as read from a lockfile.
+
+    This is what a source file gives us, before normalization to a Package URL.
+    """
+
+    name: str
+    version: str
+
+
+@dataclass(frozen=True)
 class Dependency:
-    """A resolved dependency at an exact version."""
+    """A resolved dependency at an exact version, normalized to a Package URL."""
 
     name: str
     version: str
