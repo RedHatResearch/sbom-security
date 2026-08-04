@@ -45,13 +45,68 @@ pylint src/
 
 ## Usage
 
-The REST API is not implemented yet. This section will document the endpoints and
-example `curl` calls once it lands.
+Start the service:
+
+```bash
+uvicorn sbom_security.api:app --reload
+```
+
+Report on a repository by sending its lockfile:
+
+```bash
+curl -X POST http://127.0.0.1:8000/reports/npm-lockfile \
+  -H 'Content-Type: application/json' \
+  --data-binary @package-lock.json
+```
+
+The response lists every dependency, and the vulnerabilities affecting those that are
+known to be affected:
+
+```json
+{
+  "target": "example-project",
+  "dependencies": [
+    { "name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0" }
+  ],
+  "findings": [
+    {
+      "dependency": { "name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0" },
+      "vulnerabilities": [
+        {
+          "id": "GHSA-rv95-896h-c2vc",
+          "aliases": ["CVE-2024-29041"],
+          "summary": "Express.js Open Redirect in malformed URLs",
+          "severity": "MODERATE",
+          "fixed_version": "4.19.2"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Interactive API documentation is served at `http://127.0.0.1:8000/docs`.
+
+A repository is submitted as its lockfile rather than as a URL to clone: the lockfile
+is the authority on what is installed, and this avoids giving the service network
+access to arbitrary repositories.
 
 ## Docker
 
-Container build and run instructions, including exposed ports, will be added with the
-Dockerfile.
+```bash
+docker build -t sbom-security .
+docker run --rm -p 8000:8000 sbom-security
+```
+
+The service listens on port 8000 inside the container, published here as 8000 on the
+host, so the `curl` calls above work unchanged. Outbound network access is required to
+reach the OSV.dev API.
+
+Check that it started:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
 
 ## Conventions
 
