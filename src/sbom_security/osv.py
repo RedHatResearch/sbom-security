@@ -50,7 +50,10 @@ class OsvClient:
             # The same advisory routinely affects several dependencies, so fetch each
             # record once rather than once per dependency that references it.
             unique_ids = {vuln_id for ids in ids_per_dependency for vuln_id in ids}
-            records = {vuln_id: self._fetch_record(client, vuln_id) for vuln_id in sorted(unique_ids)}
+            records = {
+                vuln_id: self._fetch_record(client, vuln_id)
+                for vuln_id in sorted(unique_ids)
+            }
 
         found: dict[str, tuple[Vulnerability, ...]] = {}
         for dependency, ids in zip(dependencies, ids_per_dependency, strict=True):
