@@ -1,5 +1,7 @@
 # sbom-security
 
+[![tests](https://github.com/RedHatResearch/sbom-security/actions/workflows/tests.yml/badge.svg)](https://github.com/RedHatResearch/sbom-security/actions/workflows/tests.yml)
+
 Report the dependencies of an npm package or repository, together with the known
 vulnerabilities affecting them.
 
@@ -84,6 +86,16 @@ known to be affected:
   ]
 }
 ```
+
+Check a single package instead:
+
+```bash
+curl 'http://127.0.0.1:8000/reports/npm-package?name=express&version=4.18.0'
+```
+
+This covers the named package only, not its dependencies. Resolving those from the
+registry means turning declared version ranges into exact versions, which is work a
+lockfile has already done — so send the lockfile when you want the whole tree.
 
 Interactive API documentation is served at `http://127.0.0.1:8000/docs`.
 

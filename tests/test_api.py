@@ -88,3 +88,41 @@ def test_accepts_a_lockfile_with_no_dependencies(client):
         "dependencies": [],
         "findings": [],
     }
+
+
+def test_reports_on_a_single_package(client):
+    response = client.get(
+        "/reports/npm-package", params={"name": "express", "version": "4.18.0"}
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["target"] == "express@4.18.0"
+    assert payload["dependencies"] == [
+        {"name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0"}
+    ]
+    assert payload["findings"][0]["vulnerabilities"][0]["aliases"] == ["CVE-2024-0001"]
+
+
+def test_single_package_report_is_empty_when_unaffected(client):
+    response = client.get(
+        "/reports/npm-package", params={"name": "accepts", "version": "1.3.8"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["findings"] == []
+
+
+def test_single_package_accepts_a_scoped_name(client):
+    response = client.get(
+        "/reports/npm-package", params={"name": "@babel/core", "version": "7.20.12"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["dependencies"][0]["name"] == "@babel/core"
+
+
+def test_single_package_requires_a_version(client):
+    response = client.get("/reports/npm-package", params={"name": "express"})
+
+    assert response.status_code == 422

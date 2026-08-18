@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI
 
 from sbom_security import __version__
 from sbom_security.lockfile import parse_package_lock_data
-from sbom_security.models import Report
+from sbom_security.models import PackageRef, Report
 from sbom_security.osv import OsvClient
 from sbom_security.purl import to_dependencies
 from sbom_security.report import build_report
@@ -43,6 +43,29 @@ def report_from_npm_lockfile(
     dependencies = to_dependencies(parse_package_lock_data(lockfile))
     return build_report(
         target=lockfile.get("name") or "unnamed project",
+        dependencies=dependencies,
+        client=client,
+    )
+
+
+@app.get("/reports/npm-package")
+def report_for_npm_package(
+    name: str,
+    version: str,
+    client: Annotated[OsvClient, Depends(get_osv_client)],
+) -> Report:
+    """Report on a single npm package at an exact version.
+
+    This covers the named package only. Its dependencies are not included, because
+    resolving them from the registry means turning the version ranges a package
+    declares into exact versions, which a lockfile has already done.
+
+    The name is a query parameter so that scoped packages such as ``@babel/core``
+    survive without ambiguity in the path.
+    """
+    dependencies = to_dependencies([PackageRef(name=name, version=version)])
+    return build_report(
+        target=f"{name}@{version}",
         dependencies=dependencies,
         client=client,
     )
