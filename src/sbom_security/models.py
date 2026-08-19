@@ -56,9 +56,12 @@ class Report:
     """The result of scanning one target.
 
     ``dependencies`` holds everything that was resolved; ``findings`` holds only
-    the subset with known vulnerabilities.
+    the subset with known vulnerabilities. ``truncated`` says whether a limit stopped
+    the whole set from being examined, so that a partial report is never mistaken for
+    a clean one.
     """
 
     target: str
     dependencies: tuple[Dependency, ...]
     findings: tuple[Finding, ...]
+    truncated: bool = False

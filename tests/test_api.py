@@ -11,7 +11,8 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from sbom_security.api import app, get_osv_client
+from sbom_security.api import app, get_github_source, get_osv_client
+from sbom_security.github import GitHubSource
 from sbom_security.osv import OsvClient
 
 LOCKFILE = json.loads((Path(__file__).parent / "data" / "package-lock.json").read_text())
@@ -44,10 +45,20 @@ def handle(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json=ADVISORY)
 
 
+def serve_lockfile(request: httpx.Request) -> httpx.Response:
+    """Serve the fixture lockfile for any repository except a known-missing one."""
+    if "expressjs" in request.url.path:
+        return httpx.Response(404, text="404: Not Found")
+    return httpx.Response(200, json=LOCKFILE)
+
+
 @pytest.fixture(name="client")
 def fixture_client():
     app.dependency_overrides[get_osv_client] = lambda: OsvClient(
         transport=httpx.MockTransport(handle)
+    )
+    app.dependency_overrides[get_github_source] = lambda: GitHubSource(
+        transport=httpx.MockTransport(serve_lockfile)
     )
     yield TestClient(app)
     app.dependency_overrides.clear()
@@ -87,6 +98,7 @@ def test_accepts_a_lockfile_with_no_dependencies(client):
         "target": "empty",
         "dependencies": [],
         "findings": [],
+        "truncated": False,
     }
 
 
@@ -124,5 +136,55 @@ def test_single_package_accepts_a_scoped_name(client):
 
 def test_single_package_requires_a_version(client):
     response = client.get("/reports/npm-package", params={"name": "express"})
+
+    assert response.status_code == 422
+
+
+def test_reports_on_a_github_repository(client):
+    response = client.get(
+        "/reports/github", params={"owner": "OWASP", "repo": "NodeGoat"}
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["target"] == "OWASP/NodeGoat@HEAD"
+    assert len(payload["dependencies"]) == 5
+    assert payload["findings"][0]["dependency"]["name"] == "express"
+
+
+def test_github_report_names_the_ref_that_was_read(client):
+    response = client.get(
+        "/reports/github",
+        params={"owner": "OWASP", "repo": "NodeGoat", "ref": "master"},
+    )
+
+    assert response.json()["target"] == "OWASP/NodeGoat@master"
+
+
+def test_missing_lockfile_is_reported_as_not_found(client):
+    response = client.get(
+        "/reports/github", params={"owner": "expressjs", "repo": "express"}
+    )
+
+    assert response.status_code == 404
+    assert "package-lock.json" in response.json()["detail"]
+
+
+def test_a_report_cut_short_by_the_limit_says_so(client):
+    response = client.post("/reports/npm-lockfile", json=LOCKFILE, params={"limit": 2})
+
+    payload = response.json()
+    assert payload["truncated"] is True
+    assert len(payload["dependencies"]) == 2
+
+
+def test_a_complete_report_is_not_marked_truncated(client):
+    response = client.post("/reports/npm-lockfile", json=LOCKFILE, params={"limit": 50})
+
+    assert response.json()["truncated"] is False
+
+
+def test_the_limit_must_be_positive(client):
+    response = client.post("/reports/npm-lockfile", json=LOCKFILE, params={"limit": 0})
 
     assert response.status_code == 422

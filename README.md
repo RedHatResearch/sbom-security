@@ -87,6 +87,21 @@ known to be affected:
 }
 ```
 
+Or name a public GitHub repository and let the service read its lockfile:
+
+```bash
+curl 'http://127.0.0.1:8000/reports/github?owner=OWASP&repo=NodeGoat'
+```
+
+Only `package-lock.json` is fetched — nothing is cloned, no package manager runs, and
+no code from the repository is executed. The ref defaults to the repository's default
+branch, whatever it is called.
+
+Large projects pin thousands of packages, and every distinct advisory costs another
+request to the vulnerability source, so a report examines at most 500 dependencies by
+default. Raise it with `&limit=2000`. A report that hit the limit comes back with
+`"truncated": true`, so a partial result is never mistaken for a clean one.
+
 Check a single package instead:
 
 ```bash

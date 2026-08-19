@@ -32,7 +32,10 @@ def report_for_lockfile(
 
 
 def build_report(
-    target: str, dependencies: Sequence[Dependency], client: OsvClient
+    target: str,
+    dependencies: Sequence[Dependency],
+    client: OsvClient,
+    truncated: bool = False,
 ) -> Report:
     """Match dependencies against the vulnerability source and collect the results.
 
@@ -45,7 +48,12 @@ def build_report(
         for dependency in dependencies
         if dependency.purl in affected
     )
-    return Report(target=target, dependencies=tuple(dependencies), findings=findings)
+    return Report(
+        target=target,
+        dependencies=tuple(dependencies),
+        findings=findings,
+        truncated=truncated,
+    )
 
 
 def as_dict(report: Report) -> dict[str, Any]:

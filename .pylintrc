@@ -8,3 +8,9 @@ disable =
 
 [FORMAT]
 max-line-length = 100
+
+[DESIGN]
+# A web endpoint declares its query parameters and its injected dependencies as
+# arguments, so the default limit of five is too low for this framework.
+max-args = 8
+max-positional-arguments = 8
