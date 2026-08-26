@@ -33,6 +33,23 @@ class Sbom:
 
 
 @dataclass(frozen=True)
+class Resolution:
+    """Everything reached by walking a package's dependencies to a given depth.
+
+    ``packages`` includes the root itself, since it can carry vulnerabilities of its
+    own. ``truncated`` says the walk stopped at the depth limit with more still to
+    expand, and ``unresolved`` names the packages whose own dependencies could not be
+    looked up. Both exist so that a partial answer is never mistaken for a complete one.
+    """
+
+    root: PackageRef
+    packages: tuple[PackageRef, ...]
+    depth: int
+    truncated: bool = False
+    unresolved: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Dependency:
     """A resolved dependency at an exact version, normalized to a Package URL."""
 

@@ -1,6 +1,6 @@
 """Tests for the REST interface.
 
-The vulnerability source is substituted, so the suite never touches the network.
+Every external source is substituted, so the suite never touches the network.
 """
 
 import json
@@ -11,9 +11,17 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from sbom_security.api import app, get_github_source, get_osv_client
+from sbom_security.api import (
+    app,
+    get_cache,
+    get_github_source,
+    get_osv_client,
+    get_registry_client,
+)
+from sbom_security.cache import SbomCache
 from sbom_security.github import GitHubSource
 from sbom_security.osv import OsvClient
+from sbom_security.registry import DepsDevClient
 
 LOCKFILE = json.loads((Path(__file__).parent / "data" / "package-lock.json").read_text())
 
@@ -28,6 +36,27 @@ ADVISORY = {
             "ranges": [{"type": "SEMVER", "events": [{"fixed": "4.18.1"}]}],
         }
     ],
+}
+
+# express depends on accepts; nothing else has dependencies.
+GRAPHS = {
+    "express@4.18.0": {
+        "nodes": [
+            {"versionKey": {"name": "express", "version": "4.18.0"}, "relation": "SELF"},
+            {"versionKey": {"name": "accepts", "version": "1.3.8"}, "relation": "DIRECT"},
+        ]
+    },
+    "accepts@1.3.8": {
+        "nodes": [
+            {"versionKey": {"name": "accepts", "version": "1.3.8"}, "relation": "SELF"}
+        ]
+    },
+    "%40babel%2Fcore@7.20.12": {
+        "nodes": [
+            {"versionKey": {"name": "@babel/core", "version": "7.20.12"},
+             "relation": "SELF"}
+        ]
+    },
 }
 
 
@@ -52,14 +81,28 @@ def serve_lockfile(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json=LOCKFILE)
 
 
+def serve_graph(request: httpx.Request) -> httpx.Response:
+    """Serve a canned dependency graph, or 404 for an unknown package."""
+    parts = str(request.url).split("/packages/")[1]
+    name, rest = parts.split("/versions/")
+    key = f"{name}@{rest.removesuffix(':dependencies')}"
+    if key not in GRAPHS:
+        return httpx.Response(404, json={})
+    return httpx.Response(200, json=GRAPHS[key])
+
+
 @pytest.fixture(name="client")
-def fixture_client():
+def fixture_client(tmp_path: Path):
     app.dependency_overrides[get_osv_client] = lambda: OsvClient(
         transport=httpx.MockTransport(handle)
     )
     app.dependency_overrides[get_github_source] = lambda: GitHubSource(
         transport=httpx.MockTransport(serve_lockfile)
     )
+    app.dependency_overrides[get_registry_client] = lambda: DepsDevClient(
+        transport=httpx.MockTransport(serve_graph)
+    )
+    app.dependency_overrides[get_cache] = lambda: SbomCache(tmp_path)
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -102,7 +145,7 @@ def test_accepts_a_lockfile_with_no_dependencies(client):
     }
 
 
-def test_reports_on_a_single_package(client):
+def test_reports_on_a_package_and_its_dependencies(client):
     response = client.get(
         "/reports/npm-package", params={"name": "express", "version": "4.18.0"}
     )
@@ -110,22 +153,28 @@ def test_reports_on_a_single_package(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["target"] == "express@4.18.0"
-    assert payload["dependencies"] == [
-        {"name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0"}
-    ]
+    # The package itself, plus what it depends on.
+    assert [dep["name"] for dep in payload["dependencies"]] == ["express", "accepts"]
+
+
+def test_package_findings_name_the_cve(client):
+    payload = client.get(
+        "/reports/npm-package", params={"name": "express", "version": "4.18.0"}
+    ).json()
+
     assert payload["findings"][0]["vulnerabilities"][0]["aliases"] == ["CVE-2024-0001"]
 
 
-def test_single_package_report_is_empty_when_unaffected(client):
-    response = client.get(
-        "/reports/npm-package", params={"name": "accepts", "version": "1.3.8"}
-    )
+def test_a_package_walked_only_one_level_is_marked_truncated(client):
+    payload = client.get(
+        "/reports/npm-package",
+        params={"name": "express", "version": "4.18.0", "depth": 1},
+    ).json()
 
-    assert response.status_code == 200
-    assert response.json()["findings"] == []
+    assert payload["truncated"] is True
 
 
-def test_single_package_accepts_a_scoped_name(client):
+def test_package_report_accepts_a_scoped_name(client):
     response = client.get(
         "/reports/npm-package", params={"name": "@babel/core", "version": "7.20.12"}
     )
@@ -134,7 +183,15 @@ def test_single_package_accepts_a_scoped_name(client):
     assert response.json()["dependencies"][0]["name"] == "@babel/core"
 
 
-def test_single_package_requires_a_version(client):
+def test_an_unknown_package_is_reported_as_not_found(client):
+    response = client.get(
+        "/reports/npm-package", params={"name": "nope", "version": "9.9.9"}
+    )
+
+    assert response.status_code == 404
+
+
+def test_package_report_requires_a_version(client):
     response = client.get("/reports/npm-package", params={"name": "express"})
 
     assert response.status_code == 422

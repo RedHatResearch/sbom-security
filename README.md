@@ -102,15 +102,20 @@ request to the vulnerability source, so a report examines at most 500 dependenci
 default. Raise it with `&limit=2000`. A report that hit the limit comes back with
 `"truncated": true`, so a partial result is never mistaken for a clean one.
 
-Check a single package instead:
+Or report on a package without any lockfile at all:
 
 ```bash
-curl 'http://127.0.0.1:8000/reports/npm-package?name=express&version=4.18.0'
+curl 'http://127.0.0.1:8000/reports/npm-package?name=express&version=4.18.0&depth=3'
 ```
 
-This covers the named package only, not its dependencies. Resolving those from the
-registry means turning declared version ranges into exact versions, which is work a
-lockfile has already done — so send the lockfile when you want the whole tree.
+Dependency versions come from resolved graphs published by [deps.dev](https://deps.dev),
+so nothing has to be installed. `depth` controls how many levels are walked — one gives
+direct dependencies only. A walk stopped by the depth limit is marked `"truncated": true`.
+
+Each version's direct dependencies are cached on disk, one file per version, under
+`.cache` (override with `SBOM_CACHE_DIR`). Those entries never expire: a published
+version cannot change what it depends on, so a package depended on by fifty others is
+resolved once rather than fifty times.
 
 Interactive API documentation is served at `http://127.0.0.1:8000/docs`.
 
