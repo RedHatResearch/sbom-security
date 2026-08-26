@@ -46,8 +46,8 @@ def client_finding(affected_names: set[str]) -> OsvClient:
     return OsvClient(transport=httpx.MockTransport(handle))
 
 
-def test_reports_every_dependency_even_when_unaffected():
-    report = build_report("demo", [EXPRESS, ACCEPTS], client_finding({"express"}))
+async def test_reports_every_dependency_even_when_unaffected():
+    report = await build_report("demo", [EXPRESS, ACCEPTS], client_finding({"express"}))
 
     assert [dependency.name for dependency in report.dependencies] == [
         "express",
@@ -55,23 +55,23 @@ def test_reports_every_dependency_even_when_unaffected():
     ]
 
 
-def test_findings_cover_only_the_affected_dependencies():
-    report = build_report("demo", [EXPRESS, ACCEPTS], client_finding({"express"}))
+async def test_findings_cover_only_the_affected_dependencies():
+    report = await build_report("demo", [EXPRESS, ACCEPTS], client_finding({"express"}))
 
     assert len(report.findings) == 1
     assert report.findings[0].dependency.name == "express"
     assert report.findings[0].vulnerabilities[0].aliases == ("CVE-2024-0001",)
 
 
-def test_reports_no_findings_when_nothing_is_affected():
-    report = build_report("demo", [EXPRESS, ACCEPTS], client_finding(set()))
+async def test_reports_no_findings_when_nothing_is_affected():
+    report = await build_report("demo", [EXPRESS, ACCEPTS], client_finding(set()))
 
     assert report.findings == ()
     assert len(report.dependencies) == 2
 
 
-def test_reads_a_lockfile_and_reports_against_it():
-    report = report_for_lockfile(
+async def test_reads_a_lockfile_and_reports_against_it():
+    report = await report_for_lockfile(
         FIXTURE, client=client_finding({"express"}), target="example-project"
     )
 
@@ -80,8 +80,8 @@ def test_reads_a_lockfile_and_reports_against_it():
     assert [finding.dependency.name for finding in report.findings] == ["express"]
 
 
-def test_report_serializes_to_json():
-    report = build_report("demo", [EXPRESS], client_finding({"express"}))
+async def test_report_serializes_to_json():
+    report = await build_report("demo", [EXPRESS], client_finding({"express"}))
 
     payload = json.loads(json.dumps(as_dict(report)))
 

@@ -30,19 +30,19 @@ class GitHubSource:
 
     base_url: str = RAW_HOST
     timeout: float = 30.0
-    transport: httpx.BaseTransport | None = None
+    transport: httpx.AsyncBaseTransport | None = None
 
     def lockfile_url(self, owner: str, repo: str, ref: str = DEFAULT_REF) -> str:
         return f"{self.base_url}/{owner}/{repo}/{ref}/{LOCKFILE}"
 
-    def fetch_lockfile(
+    async def fetch_lockfile(
         self, owner: str, repo: str, ref: str = DEFAULT_REF
     ) -> dict[str, Any]:
         """Return the parsed package-lock.json for a public repository."""
-        with httpx.Client(
+        async with httpx.AsyncClient(
             timeout=self.timeout, transport=self.transport, follow_redirects=True
         ) as client:
-            response = client.get(self.lockfile_url(owner, repo, ref))
+            response = await client.get(self.lockfile_url(owner, repo, ref))
 
         if response.status_code == 404:
             raise LockfileNotFound(

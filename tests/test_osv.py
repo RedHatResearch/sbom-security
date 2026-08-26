@@ -57,56 +57,57 @@ class FakeOsv:
         return OsvClient(transport=httpx.MockTransport(self))
 
 
-def test_asks_nothing_when_there_are_no_dependencies():
+async def test_asks_nothing_when_there_are_no_dependencies():
     fake = FakeOsv(batch_results=[])
 
-    assert fake.client().find_vulnerabilities([]) == {}
+    assert await fake.client().find_vulnerabilities([]) == {}
     assert fake.paths == []
 
 
-def test_maps_vulnerabilities_to_the_dependency_they_affect():
+async def test_maps_vulnerabilities_to_the_dependency_they_affect():
     fake = FakeOsv(
         batch_results=[{"vulns": [{"id": "GHSA-example-1"}]}, {}],
         records={"GHSA-example-1": EXPRESS_ADVISORY},
     )
 
-    found = fake.client().find_vulnerabilities([EXPRESS, ACCEPTS])
+    found = await fake.client().find_vulnerabilities([EXPRESS, ACCEPTS])
 
     assert list(found) == [EXPRESS.purl]
     assert found[EXPRESS.purl][0].id == "GHSA-example-1"
 
 
-def test_omits_dependencies_without_vulnerabilities():
+async def test_omits_dependencies_without_vulnerabilities():
     fake = FakeOsv(batch_results=[{}, {}])
 
-    assert fake.client().find_vulnerabilities([EXPRESS, ACCEPTS]) == {}
+    assert await fake.client().find_vulnerabilities([EXPRESS, ACCEPTS]) == {}
 
 
-def test_reports_the_cve_alias_summary_and_fix():
+async def test_reports_the_cve_alias_summary_and_fix():
     fake = FakeOsv(
         batch_results=[{"vulns": [{"id": "GHSA-example-1"}]}],
         records={"GHSA-example-1": EXPRESS_ADVISORY},
     )
 
-    vulnerability = fake.client().find_vulnerabilities([EXPRESS])[EXPRESS.purl][0]
+    found = await fake.client().find_vulnerabilities([EXPRESS])
+    vulnerability = found[EXPRESS.purl][0]
 
     assert vulnerability.aliases == ("CVE-2024-0001",)
     assert vulnerability.summary == "Example vulnerability in express"
     assert vulnerability.fixed_version == "4.18.1"
 
 
-def test_prefers_a_plain_severity_over_a_scoring_vector():
+async def test_prefers_a_plain_severity_over_a_scoring_vector():
     fake = FakeOsv(
         batch_results=[{"vulns": [{"id": "GHSA-example-1"}]}],
         records={"GHSA-example-1": EXPRESS_ADVISORY},
     )
 
-    vulnerability = fake.client().find_vulnerabilities([EXPRESS])[EXPRESS.purl][0]
+    found = await fake.client().find_vulnerabilities([EXPRESS])
 
-    assert vulnerability.severity == "HIGH"
+    assert found[EXPRESS.purl][0].severity == "HIGH"
 
 
-def test_falls_back_to_the_scoring_vector():
+async def test_falls_back_to_the_scoring_vector():
     advisory = {**EXPRESS_ADVISORY}
     del advisory["database_specific"]
     fake = FakeOsv(
@@ -114,12 +115,12 @@ def test_falls_back_to_the_scoring_vector():
         records={"GHSA-example-1": advisory},
     )
 
-    vulnerability = fake.client().find_vulnerabilities([EXPRESS])[EXPRESS.purl][0]
+    found = await fake.client().find_vulnerabilities([EXPRESS])
 
-    assert vulnerability.severity == "CVSS:3.1/AV:N/AC:L"
+    assert found[EXPRESS.purl][0].severity == "CVSS:3.1/AV:N/AC:L"
 
 
-def test_ignores_a_fix_belonging_to_a_different_package():
+async def test_ignores_a_fix_belonging_to_a_different_package():
     advisory = {
         "id": "GHSA-example-2",
         "affected": [
@@ -134,12 +135,12 @@ def test_ignores_a_fix_belonging_to_a_different_package():
         records={"GHSA-example-2": advisory},
     )
 
-    vulnerability = fake.client().find_vulnerabilities([EXPRESS])[EXPRESS.purl][0]
+    found = await fake.client().find_vulnerabilities([EXPRESS])
 
-    assert vulnerability.fixed_version is None
+    assert found[EXPRESS.purl][0].fixed_version is None
 
 
-def test_fetches_a_shared_advisory_only_once():
+async def test_fetches_a_shared_advisory_only_once():
     fake = FakeOsv(
         batch_results=[
             {"vulns": [{"id": "GHSA-example-1"}]},
@@ -148,15 +149,15 @@ def test_fetches_a_shared_advisory_only_once():
         records={"GHSA-example-1": EXPRESS_ADVISORY},
     )
 
-    found = fake.client().find_vulnerabilities([EXPRESS, ACCEPTS])
+    found = await fake.client().find_vulnerabilities([EXPRESS, ACCEPTS])
 
     assert set(found) == {EXPRESS.purl, ACCEPTS.purl}
     assert fake.paths.count("/v1/vulns/GHSA-example-1") == 1
 
 
-def test_refuses_a_response_that_does_not_line_up_with_the_query():
+async def test_refuses_a_response_that_does_not_line_up_with_the_query():
     # A short response would attribute one package's vulnerabilities to another.
     fake = FakeOsv(batch_results=[{"vulns": [{"id": "GHSA-example-1"}]}])
 
     with pytest.raises(RuntimeError, match="1 results for 2 queries"):
-        fake.client().find_vulnerabilities([EXPRESS, ACCEPTS])
+        await fake.client().find_vulnerabilities([EXPRESS, ACCEPTS])

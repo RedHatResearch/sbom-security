@@ -7,9 +7,11 @@ vulnerability database of our own.
 
 Lookups take two calls. ``/v1/querybatch`` answers "which vulnerabilities affect these
 packages" for up to a thousand packages at a time, but returns only identifiers.
-``/v1/vulns/{id}`` then returns the full record for each identifier found.
+``/v1/vulns/{id}`` then returns the full record for each identifier found. The second
+step dominates the time taken, so those requests are issued concurrently.
 """
 
+import asyncio
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -21,6 +23,10 @@ from sbom_security.models import Dependency, Vulnerability
 OSV_API = "https://api.osv.dev"
 MAX_QUERIES_PER_BATCH = 1000
 
+# Enough concurrency to make the fetches fast, bounded so that a large project does
+# not open hundreds of simultaneous connections against a free public service.
+MAX_CONCURRENT_FETCHES = 20
+
 
 @dataclass(frozen=True)
 class OsvClient:
@@ -31,9 +37,9 @@ class OsvClient:
 
     base_url: str = OSV_API
     timeout: float = 30.0
-    transport: httpx.BaseTransport | None = None
+    transport: httpx.AsyncBaseTransport | None = None
 
-    def find_vulnerabilities(
+    async def find_vulnerabilities(
         self, dependencies: Sequence[Dependency]
     ) -> dict[str, tuple[Vulnerability, ...]]:
         """Return the vulnerabilities affecting each dependency, keyed by Package URL.
@@ -44,16 +50,15 @@ class OsvClient:
         if not dependencies:
             return {}
 
-        with httpx.Client(timeout=self.timeout, transport=self.transport) as client:
-            ids_per_dependency = self._query_ids(client, dependencies)
+        async with httpx.AsyncClient(
+            timeout=self.timeout, transport=self.transport
+        ) as client:
+            ids_per_dependency = await self._query_ids(client, dependencies)
 
             # The same advisory routinely affects several dependencies, so fetch each
             # record once rather than once per dependency that references it.
             unique_ids = {vuln_id for ids in ids_per_dependency for vuln_id in ids}
-            records = {
-                vuln_id: self._fetch_record(client, vuln_id)
-                for vuln_id in sorted(unique_ids)
-            }
+            records = await self._fetch_records(client, unique_ids)
 
         found: dict[str, tuple[Vulnerability, ...]] = {}
         for dependency, ids in zip(dependencies, ids_per_dependency, strict=True):
@@ -63,33 +68,49 @@ class OsvClient:
                 )
         return found
 
-    def _query_ids(
-        self, client: httpx.Client, dependencies: Sequence[Dependency]
+    async def _query_ids(
+        self, client: httpx.AsyncClient, dependencies: Sequence[Dependency]
     ) -> list[list[str]]:
         """Return the vulnerability identifiers for each dependency, in the same order."""
-        ids: list[list[str]] = []
-        for chunk in _chunked(dependencies, MAX_QUERIES_PER_BATCH):
-            payload = {"queries": [{"package": {"purl": item.purl}} for item in chunk]}
-            response = client.post(f"{self.base_url}/v1/querybatch", json=payload)
-            response.raise_for_status()
-            results = response.json().get("results", [])
+        chunks = list(_chunked(dependencies, MAX_QUERIES_PER_BATCH))
+        responses = await asyncio.gather(
+            *(self._query_chunk(client, chunk) for chunk in chunks)
+        )
 
+        ids: list[list[str]] = []
+        for chunk, results in zip(chunks, responses, strict=True):
             # Results are positional. A short response would silently attribute one
             # package's vulnerabilities to another, so refuse to continue instead.
             if len(results) != len(chunk):
                 raise RuntimeError(
                     f"OSV returned {len(results)} results for {len(chunk)} queries"
                 )
-
             ids.extend(
                 [vuln["id"] for vuln in result.get("vulns") or []] for result in results
             )
         return ids
 
-    def _fetch_record(self, client: httpx.Client, vuln_id: str) -> dict[str, Any]:
-        response = client.get(f"{self.base_url}/v1/vulns/{vuln_id}")
+    async def _query_chunk(
+        self, client: httpx.AsyncClient, chunk: Sequence[Dependency]
+    ) -> list[dict[str, Any]]:
+        payload = {"queries": [{"package": {"purl": item.purl}} for item in chunk]}
+        response = await client.post(f"{self.base_url}/v1/querybatch", json=payload)
         response.raise_for_status()
-        return response.json()
+        return response.json().get("results", [])
+
+    async def _fetch_records(
+        self, client: httpx.AsyncClient, vuln_ids: set[str]
+    ) -> dict[str, dict[str, Any]]:
+        """Fetch every advisory record concurrently, bounded by a semaphore."""
+        limit = asyncio.Semaphore(MAX_CONCURRENT_FETCHES)
+
+        async def fetch(vuln_id: str) -> tuple[str, dict[str, Any]]:
+            async with limit:
+                response = await client.get(f"{self.base_url}/v1/vulns/{vuln_id}")
+                response.raise_for_status()
+                return vuln_id, response.json()
+
+        return dict(await asyncio.gather(*(fetch(v) for v in sorted(vuln_ids))))
 
 
 def _to_vulnerability(raw: dict[str, Any], dependency: Dependency) -> Vulnerability:

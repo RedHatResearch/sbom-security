@@ -15,7 +15,7 @@ from sbom_security.osv import OsvClient
 from sbom_security.purl import to_dependencies
 
 
-def report_for_lockfile(
+async def report_for_lockfile(
     path: Path, client: OsvClient | None = None, target: str | None = None
 ) -> Report:
     """Produce a report for a repository from its npm lockfile.
@@ -24,14 +24,14 @@ def report_for_lockfile(
     is actually installed: it already pins every dependency in the tree.
     """
     dependencies = to_dependencies(parse_package_lock(path))
-    return build_report(
+    return await build_report(
         target=target or str(path),
         dependencies=dependencies,
         client=client or OsvClient(),
     )
 
 
-def build_report(
+async def build_report(
     target: str,
     dependencies: Sequence[Dependency],
     client: OsvClient,
@@ -42,7 +42,7 @@ def build_report(
     Every dependency is reported, since the inventory is useful on its own. Findings
     cover only those with known vulnerabilities, in the order the dependencies appear.
     """
-    affected = client.find_vulnerabilities(dependencies)
+    affected = await client.find_vulnerabilities(dependencies)
     findings = tuple(
         Finding(dependency=dependency, vulnerabilities=affected[dependency.purl])
         for dependency in dependencies

@@ -19,6 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-asyncio",
     "pylint",
 ]
 
@@ -27,3 +28,5 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Async tests are run without needing a decorator on each one.
+asyncio_mode = "auto"

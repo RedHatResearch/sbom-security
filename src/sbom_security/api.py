@@ -51,7 +51,7 @@ def get_github_source() -> GitHubSource:
     return GitHubSource()
 
 
-def _report(
+async def _report(
     target: str,
     lockfile: dict[str, Any],
     client: OsvClient,
@@ -60,7 +60,7 @@ def _report(
     """Report on a parsed lockfile, examining at most ``limit`` dependencies."""
     refs = parse_package_lock_data(lockfile)
     truncated = len(refs) > limit
-    return build_report(
+    return await build_report(
         target=target,
         dependencies=to_dependencies(refs[:limit]),
         client=client,
@@ -75,13 +75,13 @@ def health() -> dict[str, str]:
 
 
 @app.post("/reports/npm-lockfile")
-def report_from_npm_lockfile(
+async def report_from_npm_lockfile(
     lockfile: dict[str, Any],
     client: Annotated[OsvClient, Depends(get_osv_client)],
     limit: Limit = DEFAULT_LIMIT,
 ) -> Report:
     """Report on the contents of a package-lock.json sent as the request body."""
-    return _report(
+    return await _report(
         target=lockfile.get("name") or "unnamed project",
         lockfile=lockfile,
         client=client,
@@ -90,7 +90,7 @@ def report_from_npm_lockfile(
 
 
 @app.get("/reports/github")
-def report_for_github_repository(
+async def report_for_github_repository(
     owner: str,
     repo: str,
     client: Annotated[OsvClient, Depends(get_osv_client)],
@@ -104,11 +104,11 @@ def report_for_github_repository(
     repository's default branch, whatever it happens to be called.
     """
     try:
-        lockfile = source.fetch_lockfile(owner, repo, ref)
+        lockfile = await source.fetch_lockfile(owner, repo, ref)
     except LockfileNotFound as missing:
         raise HTTPException(status_code=404, detail=str(missing)) from missing
 
-    return _report(
+    return await _report(
         target=f"{owner}/{repo}@{ref}",
         lockfile=lockfile,
         client=client,
@@ -117,7 +117,7 @@ def report_for_github_repository(
 
 
 @app.get("/reports/npm-package")
-def report_for_npm_package(
+async def report_for_npm_package(
     name: str,
     version: str,
     client: Annotated[OsvClient, Depends(get_osv_client)],
@@ -134,7 +134,7 @@ def report_for_npm_package(
     dependencies: list[Dependency] = list(
         to_dependencies([PackageRef(name=name, version=version)])
     )
-    return build_report(
+    return await build_report(
         target=f"{name}@{version}",
         dependencies=dependencies,
         client=client,
