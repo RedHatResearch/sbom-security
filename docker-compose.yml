@@ -1,0 +1,47 @@
+# Bring the whole thing up:
+#
+#     docker compose up --build
+#
+# The API is then on http://127.0.0.1:8000. Add workers with:
+#
+#     docker compose up --scale worker=4
+
+services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      # Published on 8010 to stay clear of whatever else may already hold 8000.
+      - "8010:8000"
+    environment:
+      REDIS_DSN: redis://redis:6379
+      SBOM_CACHE_DIR: /cache
+    volumes:
+      # The API and the workers read and write the same SBOM cache, so whatever a
+      # worker resolves is immediately available to a request.
+      - cache:/cache
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: arq sbom_security.worker.WorkerSettings
+    environment:
+      REDIS_DSN: redis://redis:6379
+      SBOM_CACHE_DIR: /cache
+    volumes:
+      - cache:/cache
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  cache:

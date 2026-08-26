@@ -14,6 +14,7 @@ dependencies = [
     "packageurl-python",
     "fastapi",
     "uvicorn",
+    "arq",
 ]
 
 [project.optional-dependencies]

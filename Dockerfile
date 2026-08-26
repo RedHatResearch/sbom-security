@@ -14,8 +14,13 @@ COPY pyproject.toml README.md ./
 COPY src/ ./src/
 RUN pip install --no-cache-dir .
 
-# Run as an unprivileged user rather than root.
-RUN useradd --create-home --uid 1001 app
+# Run as an unprivileged user rather than root. The cache directory is created here
+# so that a volume mounted over it inherits this ownership: Docker seeds an empty
+# named volume from the image, and without this the directory would arrive owned by
+# root and be unwritable by the user the process runs as.
+RUN useradd --create-home --uid 1001 app \
+    && mkdir -p /cache \
+    && chown app:app /cache
 USER app
 
 EXPOSE 8000

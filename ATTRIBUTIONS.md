@@ -22,6 +22,7 @@ alone does not convey.
 | Component | Where | License | Used for |
 | --------- | ----- | ------- | -------- |
 | packageurl-python | https://github.com/package-url/packageurl-python | MIT | Building and parsing Package URLs, rather than reimplementing the specification |
+| arq | https://github.com/python-arq/arq | MIT | The work queue. Chosen over Celery because it is built for asyncio, which the rest of this project already uses, and because the work here is uniform and parallel rather than orchestrated. It is confined to `queue.py` and `worker.py`; the work itself has no knowledge of it. |
 
 ## Designs adopted without reusing code
 

@@ -16,10 +16,12 @@ from sbom_security.api import (
     get_cache,
     get_github_source,
     get_osv_client,
+    get_queue,
     get_registry_client,
 )
 from sbom_security.cache import SbomCache
 from sbom_security.github import GitHubSource
+from sbom_security.jobs import COMPLETE, NOT_FOUND, QUEUED, JobState, job_id
 from sbom_security.osv import OsvClient
 from sbom_security.registry import DepsDevClient
 
@@ -91,8 +93,32 @@ def serve_graph(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json=GRAPHS[key])
 
 
+class FakeQueue:
+    """Stands in for the work queue, recording what was submitted."""
+
+    def __init__(self):
+        self.submitted: list[tuple[str, str, int, str | None]] = []
+        self.states: dict[str, JobState] = {}
+
+    async def submit(
+        self, name: str, version: str, depth: int, callback_url: str | None = None
+    ) -> str:
+        identifier = job_id(name, version, depth)
+        self.submitted.append((name, version, depth, callback_url))
+        self.states.setdefault(identifier, JobState(id=identifier, status=QUEUED))
+        return identifier
+
+    async def state(self, identifier: str) -> JobState:
+        return self.states.get(identifier, JobState(id=identifier, status=NOT_FOUND))
+
+
+@pytest.fixture(name="queue")
+def fixture_queue():
+    return FakeQueue()
+
+
 @pytest.fixture(name="client")
-def fixture_client(tmp_path: Path):
+def fixture_client(tmp_path: Path, queue: FakeQueue):
     app.dependency_overrides[get_osv_client] = lambda: OsvClient(
         transport=httpx.MockTransport(handle)
     )
@@ -103,6 +129,7 @@ def fixture_client(tmp_path: Path):
         transport=httpx.MockTransport(serve_graph)
     )
     app.dependency_overrides[get_cache] = lambda: SbomCache(tmp_path)
+    app.dependency_overrides[get_queue] = lambda: queue
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -245,3 +272,88 @@ def test_the_limit_must_be_positive(client):
     response = client.post("/reports/npm-lockfile", json=LOCKFILE, params={"limit": 0})
 
     assert response.status_code == 422
+
+
+def test_submitting_a_package_returns_immediately(client, queue):
+    response = client.post(
+        "/jobs/npm-package", params={"name": "express", "version": "4.18.0"}
+    )
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "queued"
+    assert queue.submitted == [("express", "4.18.0", 3, None)]
+
+
+def test_a_submission_says_where_to_collect_the_result(client):
+    response = client.post(
+        "/jobs/npm-package", params={"name": "express", "version": "4.18.0"}
+    )
+
+    assert response.headers["Location"] == f"/jobs/{response.json()['id']}"
+
+
+def test_the_same_request_twice_is_queued_once(client, queue):
+    first = client.post(
+        "/jobs/npm-package", params={"name": "express", "version": "4.18.0"}
+    ).json()
+    second = client.post(
+        "/jobs/npm-package", params={"name": "express", "version": "4.18.0"}
+    ).json()
+
+    # Both callers hold the same identifier and wait on the same piece of work.
+    assert first["id"] == second["id"]
+
+
+def test_a_callback_url_is_passed_to_the_worker(client, queue):
+    client.post(
+        "/jobs/npm-package",
+        params={
+            "name": "express",
+            "version": "4.18.0",
+            "callback_url": "https://example.test/done",
+        },
+    )
+
+    assert queue.submitted[0][3] == "https://example.test/done"
+
+
+def test_a_finished_job_hands_back_its_report(client, queue):
+    identifier = job_id("express", "4.18.0", 3)
+    queue.states[identifier] = JobState(
+        id=identifier, status=COMPLETE, result={"target": "express@4.18.0"}
+    )
+
+    response = client.get(f"/jobs/{identifier}")
+
+    assert response.status_code == 200
+    assert response.json()["result"]["target"] == "express@4.18.0"
+
+
+def test_an_unfinished_job_reports_its_status_without_a_result(client, queue):
+    identifier = job_id("express", "4.18.0", 3)
+    queue.states[identifier] = JobState(id=identifier, status="in_progress")
+
+    payload = client.get(f"/jobs/{identifier}").json()
+
+    assert payload["status"] == "in_progress"
+    assert payload["result"] is None
+
+
+def test_an_unknown_job_is_reported_as_not_found(client):
+    response = client.get("/jobs/pkg:npm/nothing@1.0.0@depth=3")
+
+    assert response.status_code == 404
+
+
+def test_a_failed_job_says_why(client, queue):
+    identifier = job_id("nope", "9.9.9", 3)
+    queue.states[identifier] = JobState(
+        id=identifier,
+        status="failed",
+        error="PackageNotFound: nope@9.9.9 is not known to deps.dev",
+    )
+
+    payload = client.get(f"/jobs/{identifier}").json()
+
+    assert payload["status"] == "failed"
+    assert "PackageNotFound" in payload["error"]

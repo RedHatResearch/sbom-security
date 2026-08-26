@@ -123,7 +123,38 @@ A repository is submitted as its lockfile rather than as a URL to clone: the loc
 is the authority on what is installed, and this avoids giving the service network
 access to arbitrary repositories.
 
+## Submitting work instead of waiting
+
+Resolving a large tree for the first time can take longer than a caller wants to hold
+a connection open. Such a request can be handed to a worker instead:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/jobs/npm-package?name=express&version=4.18.0&depth=3'
+```
+
+That returns immediately with an identifier and a `Location` header. Collect the
+result from it:
+
+```bash
+curl 'http://127.0.0.1:8000/jobs/pkg:npm/express@4.18.0@depth=3'
+```
+
+While the work is outstanding the status is `queued` or `in_progress`; once it
+finishes, the report is included as `result`. Submitting the same package, version and
+depth again while the first is still running returns the same identifier rather than
+repeating the work.
+
+To be told when it finishes rather than asking, pass an address to post the report to:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/jobs/npm-package?name=express&version=4.18.0&callback_url=https://example.com/done'
+```
+
+Workers hold nothing between jobs, so any number can run against the same queue.
+
 ## Docker
+
+A single container serves the API:
 
 ```bash
 docker build -t sbom-security .
@@ -132,7 +163,18 @@ docker run --rm -p 8000:8000 sbom-security
 
 The service listens on port 8000 inside the container, published here as 8000 on the
 host, so the `curl` calls above work unchanged. Outbound network access is required to
-reach the OSV.dev API.
+reach OSV.dev and deps.dev. Without Redis the immediate endpoints work as normal and
+only the submitted-work endpoints report themselves unavailable.
+
+The API, a worker and Redis together:
+
+```bash
+docker compose up --build
+```
+
+This publishes the API on **port 8010**, leaving 8000 free for a local `uvicorn`. Add
+more workers with `docker compose up --scale worker=4`. The API and the workers share
+one cache volume, so whatever a worker resolves is immediately available to a request.
 
 Check that it started:
 
