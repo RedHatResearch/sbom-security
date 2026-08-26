@@ -19,6 +19,20 @@ class PackageRef:
 
 
 @dataclass(frozen=True)
+class Sbom:
+    """The direct dependencies of one package version.
+
+    Only direct dependencies are recorded. A published version's own dependencies
+    never change, so this is permanently valid and can be cached indefinitely, and
+    the depth of a dependency walk becomes a property of the walk rather than of
+    anything stored here.
+    """
+
+    purl: str
+    dependencies: tuple[PackageRef, ...]
+
+
+@dataclass(frozen=True)
 class Dependency:
     """A resolved dependency at an exact version, normalized to a Package URL."""
 

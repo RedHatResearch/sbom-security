@@ -15,6 +15,7 @@ alone does not convey.
 | Source | Where | License | Used for |
 | ------ | ----- | ------- | -------- |
 | OSV.dev | https://osv.dev | Records carry their upstream licenses; see osv.dev | The vulnerability database and its schema. Aggregates GitHub Security Advisories, PyPA, RustSec, the Go vulnerability database and around twenty further feeds, so this project does not maintain a vulnerability database of its own. |
+| deps.dev | https://deps.dev | See deps.dev | Resolved dependency graphs per package version. A package declares version ranges, and turning those into exact versions means reimplementing part of npm's resolver; deps.dev has already done it. |
 
 ## Libraries
 
