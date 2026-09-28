@@ -69,6 +69,19 @@ curl 'http://127.0.0.1:8010/reports/npm-package?name=express&version=4.18.0'
 curl 'http://127.0.0.1:8010/reports/npm-package?name=express&version=4.18.0&depth=1'
 ```
 
+`version` may also be a range, or left out entirely:
+
+| Asked for | Gets |
+| --------- | ---- |
+| `version=4.18.0` | that exact version |
+| `version=^4.0.0` | the newest that does not cross a major boundary |
+| *omitted* | the newest release |
+
+The report always names the version it settled on, never the range — so a scan of
+`express` records `express@5.0.0`, and `generated_at` says when that was what newest
+meant. That way a package can be asked about once rather than re-registered at every
+release.
+
 A walk runs to the bottom of the tree, bounded by a ceiling on how many packages one
 request may examine. Depth cannot be predicted from outside, but the amount of work a
 single request causes can be — and a walk stopped by that ceiling is marked

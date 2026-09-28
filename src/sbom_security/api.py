@@ -223,6 +223,31 @@ async def _report_from_declared(
     )
 
 
+async def _resolve_requested_version(
+    name: str, version: str | None, sources: Sources
+) -> PackageRef:
+    """Turn what the caller asked for into one published version.
+
+    An omitted version means the newest release. A range such as ``^4.0.0`` means the
+    newest that does not cross a major boundary. An exact version resolves to itself,
+    and asking for one that was never published fails here with a clear answer rather
+    than further down with a confusing one.
+
+    Resolving before anything else matters for submitted work: the identifier has to
+    name a version, or two requests months apart would share one job and the second
+    would collect the first one's answer.
+    """
+    requested = Requirement(name=name, range=version or "*", ecosystem=NPM)
+    resolved, _ = await sources.npm.resolve([requested])
+
+    if not resolved:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No published version of {name} matches {version or 'latest'}.",
+        )
+    return resolved[0]
+
+
 async def _declared_by_repository(
     owner: str, repo: str, ref: str, sources: Sources
 ) -> tuple[str, tuple[PackageRef, ...], tuple[str, ...]] | None:
@@ -287,13 +312,19 @@ async def report_from_npm_lockfile(
 @app.post("/jobs/npm-package", status_code=status.HTTP_202_ACCEPTED)
 async def submit_npm_package(
     name: str,
-    version: str,
     queue: Annotated[ArqQueue, Depends(get_queue)],
+    sources: Annotated[Sources, Depends(get_sources)],
     response: Response,
+    version: str | None = None,
     depth: Depth = DEFAULT_DEPTH,
     callback_url: str | None = None,
 ) -> JobState:
     """Hand a package to a worker and return straight away.
+
+    ``version`` may be exact, a range, or left out for the newest release. It is
+    settled here rather than in the worker, so that the identifier names a version:
+    otherwise two requests months apart would share one job, and the later one would
+    collect an answer about a version that is no longer the newest.
 
     Submitting the same package, version and depth while that work is still outstanding
     returns the identifier already in hand rather than queueing it a second time.
@@ -301,7 +332,8 @@ async def submit_npm_package(
     Give ``callback_url`` to be told when it is done; otherwise collect the result from
     the returned identifier.
     """
-    identifier = await queue.submit(name, version, depth, callback_url)
+    ref = await _resolve_requested_version(name, version, sources)
+    identifier = await queue.submit(ref.name, ref.version, depth, callback_url)
     response.headers["Location"] = f"/jobs/{identifier}"
     return await queue.state(identifier)
 
@@ -375,11 +407,14 @@ async def report_for_github_repository(
 @app.get("/reports/npm-package")
 async def report_for_npm_package(
     name: str,
-    version: str,
     sources: Annotated[Sources, Depends(get_sources)],
+    version: str | None = None,
     depth: Depth = DEFAULT_DEPTH,
 ) -> Report:
     """Report on an npm package and the dependencies it pulls in.
+
+    ``version`` may be exact, a range such as ``^4.0.0``, or left out entirely for the
+    newest release. Whatever is asked for, the report names the version it settled on.
 
     Dependency versions come from resolved graphs rather than from a lockfile, so no
     lockfile is needed. Each version's dependencies are cached permanently, since a
@@ -388,10 +423,11 @@ async def report_for_npm_package(
     The name is a query parameter so that scoped packages such as ``@babel/core``
     survive without ambiguity in the path.
     """
+    ref = await _resolve_requested_version(name, version, sources)
     try:
         return await report_for_package(
-            name,
-            version,
+            ref.name,
+            ref.version,
             cache=sources.cache,
             registry=sources.registry,
             osv=sources.osv,

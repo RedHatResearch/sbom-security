@@ -51,11 +51,18 @@ ADVISORY = {
     ],
 }
 
-# express depends on accepts; nothing else has dependencies.
+# express depends on accepts; nothing else has dependencies. Both published versions
+# are here, since a request that names no version resolves to the newest.
 GRAPHS = {
     "express@4.18.0": {
         "nodes": [
             {"versionKey": {"name": "express", "version": "4.18.0"}, "relation": "SELF"},
+            {"versionKey": {"name": "accepts", "version": "1.3.8"}, "relation": "DIRECT"},
+        ]
+    },
+    "express@5.0.0": {
+        "nodes": [
+            {"versionKey": {"name": "express", "version": "5.0.0"}, "relation": "SELF"},
             {"versionKey": {"name": "accepts", "version": "1.3.8"}, "relation": "DIRECT"},
         ]
     },
@@ -89,7 +96,10 @@ def handle(request: httpx.Request) -> httpx.Response:
 
 MANIFEST = {"name": "manifest-project", "dependencies": {"express": "^4.18.0"}}
 
-PUBLISHED_VERSIONS = {"express": ["4.17.0", "4.18.0"]}
+PUBLISHED_VERSIONS = {
+    "express": ["4.17.0", "4.18.0", "5.0.0"],
+    "@babel/core": ["7.20.12"],
+}
 
 
 REQUIREMENTS_TXT = "django==4.2.0\n-r base.txt\n"
@@ -334,10 +344,45 @@ def test_an_unknown_package_is_reported_as_not_found(client):
     assert response.status_code == 404
 
 
-def test_package_report_requires_a_version(client):
+def test_a_package_without_a_version_gets_the_newest(client):
+    # Registering once and not re-registering at every release is the point.
     response = client.get("/reports/npm-package", params={"name": "express"})
 
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.json()["target"]["name"] == "express@5.0.0"
+
+
+def test_a_range_gets_the_newest_within_it(client):
+    response = client.get(
+        "/reports/npm-package", params={"name": "express", "version": "^4.0.0"}
+    )
+
+    # 5.0.0 exists but crosses the major boundary.
+    assert response.json()["target"]["name"] == "express@4.18.0"
+
+
+def test_the_report_names_the_version_it_settled_on(client):
+    payload = client.get("/reports/npm-package", params={"name": "express"}).json()
+
+    # Not "latest" — what latest meant at the time, which generated_at dates.
+    assert payload["target"]["name"] == "express@5.0.0"
+    assert payload["generated_at"]
+
+
+def test_a_version_that_was_never_published_is_reported_clearly(client):
+    response = client.get(
+        "/reports/npm-package", params={"name": "express", "version": "99.0.0"}
+    )
+
+    assert response.status_code == 404
+    assert "99.0.0" in response.json()["detail"]
+
+
+def test_submitted_work_names_a_version_not_a_range(client, queue):
+    # Two requests months apart must not share one job and one stale answer.
+    client.post("/jobs/npm-package", params={"name": "express"})
+
+    assert queue.submitted == [("express", "5.0.0", None, None)]
 
 
 def test_reports_on_a_github_repository(client):
