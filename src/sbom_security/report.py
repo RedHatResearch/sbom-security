@@ -1,38 +1,39 @@
 """Assemble the report for a scan target.
 
-This is where the three steps meet: read the dependencies, normalize them to Package
-URLs, and ask the vulnerability source which of them are affected.
+This is where the pieces meet: the dependencies a project has, normalized to Package
+URLs, matched against the vulnerability source, and wrapped with enough context that
+the answer can be read correctly later.
 """
 
 from collections.abc import Sequence
 from dataclasses import asdict
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 
-from sbom_security.lockfile import parse_package_lock
-from sbom_security.models import Dependency, Finding, Report
+from sbom_security.cache import SbomCache
+from sbom_security.models import (
+    NPM,
+    PACKAGE,
+    Dependency,
+    Finding,
+    PackageRef,
+    Report,
+    Summary,
+    Target,
+)
 from sbom_security.osv import OsvClient
 from sbom_security.purl import to_dependencies
+from sbom_security.registry import DepsDevClient
+from sbom_security.resolver import DEFAULT_DEPTH, resolve_tree
 
 
-async def report_for_lockfile(
-    path: Path, client: OsvClient | None = None, target: str | None = None
-) -> Report:
-    """Produce a report for a repository from its npm lockfile.
-
-    A repository has no version of its own, so the lockfile is the authority on what
-    is actually installed: it already pins every dependency in the tree.
-    """
-    dependencies = to_dependencies(parse_package_lock(path))
-    return await build_report(
-        target=target or str(path),
-        dependencies=dependencies,
-        client=client or OsvClient(),
-    )
+def now() -> str:
+    """Return the current time, as the report records it."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 async def build_report(
-    target: str,
+    target: Target,
     dependencies: Sequence[Dependency],
     client: OsvClient,
     truncated: bool = False,
@@ -49,12 +50,44 @@ async def build_report(
         for dependency in dependencies
         if dependency.purl in affected
     )
+
     return Report(
         target=target,
+        summary=Summary(
+            dependencies=len(dependencies),
+            vulnerable=len(findings),
+            vulnerabilities=sum(len(finding.vulnerabilities) for finding in findings),
+        ),
         dependencies=tuple(dependencies),
         findings=findings,
+        generated_at=now(),
         truncated=truncated,
         unresolved=unresolved,
+    )
+
+
+async def report_for_package(
+    name: str,
+    version: str,
+    cache: SbomCache,
+    registry: DepsDevClient,
+    osv: OsvClient,
+    depth: int = DEFAULT_DEPTH,
+) -> Report:
+    """Resolve one package's dependencies and report on what they carry.
+
+    Shared by the API and by the workers, which ask the same question by different
+    routes: one holds the connection open, the other answers later.
+    """
+    resolution = await resolve_tree(
+        PackageRef(name=name, version=version), cache=cache, client=registry, depth=depth
+    )
+    return await build_report(
+        target=Target(name=f"{name}@{version}", ecosystem=NPM, source=PACKAGE),
+        dependencies=to_dependencies(resolution.packages),
+        client=osv,
+        truncated=resolution.truncated,
+        unresolved=resolution.unresolved,
     )
 
 

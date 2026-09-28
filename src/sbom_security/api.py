@@ -23,17 +23,26 @@ from sbom_security.github import DEFAULT_REF, FileNotFound, GitHubSource, Lockfi
 from sbom_security.jobs import NOT_FOUND, JobState
 from sbom_security.lockfile import parse_package_lock_data
 from sbom_security.manifest import parse_package_json
-from sbom_security.models import PackageRef, Report
-from sbom_security.models import Requirement
+from sbom_security.models import (
+    LOCKFILE,
+    MANIFEST,
+    NPM,
+    PACKAGE,
+    PYPI,
+    PackageRef,
+    Report,
+    Requirement,
+    Target,
+)
 from sbom_security.npm import NpmRegistry
 from sbom_security.osv import OsvClient
 from sbom_security.purl import to_dependencies
 from sbom_security.pypi import PyPiIndex
 from sbom_security.queue import ArqQueue, connect
 from sbom_security.registry import DepsDevClient, PackageNotFound
-from sbom_security.report import build_report
+from sbom_security.report import build_report, report_for_package
 from sbom_security.requirements import parse_requirements_txt
-from sbom_security.resolver import DEFAULT_DEPTH, resolve_declared, resolve_tree
+from sbom_security.resolver import DEFAULT_DEPTH, resolve_declared
 
 # Large projects pin thousands of packages, and each distinct advisory costs another
 # request to OSV. The default keeps an unattended call bounded; raise it deliberately.
@@ -174,12 +183,12 @@ async def get_queue(request: Request) -> ArqQueue:
 
 
 async def _report_from_lockfile(
-    target: str, lockfile: dict[str, Any], sources: Sources, limit: int
+    name: str, lockfile: dict[str, Any], sources: Sources, limit: int
 ) -> Report:
     """Report on a lockfile, which already pins every version it names."""
     refs = parse_package_lock_data(lockfile)
     return await build_report(
-        target=target,
+        target=Target(name=name, ecosystem=NPM, source=LOCKFILE),
         dependencies=to_dependencies(refs[:limit]),
         client=sources.osv,
         truncated=len(refs) > limit,
@@ -187,7 +196,7 @@ async def _report_from_lockfile(
 
 
 async def _report_from_declared(
-    target: str,
+    target: Target,
     declared: tuple[PackageRef, ...],
     unresolvable: tuple[str, ...],
     sources: Sources,
@@ -216,11 +225,12 @@ async def _report_from_declared(
 
 async def _declared_by_repository(
     owner: str, repo: str, ref: str, sources: Sources
-) -> tuple[tuple[PackageRef, ...], tuple[str, ...]] | None:
+) -> tuple[str, tuple[PackageRef, ...], tuple[str, ...]] | None:
     """Resolve what a repository declares, from whichever manifest it has.
 
-    npm is tried before Python only because a project that has both is more usually a
-    JavaScript one with tooling alongside. Returns None if neither is present.
+    Returns the ecosystem it belongs to alongside the result. npm is tried before
+    Python only because a project carrying both is more usually a JavaScript one with
+    tooling alongside. None means neither file is present.
     """
     try:
         manifest = await sources.github.fetch_manifest(owner, repo, ref)
@@ -228,7 +238,8 @@ async def _declared_by_repository(
         pass
     else:
         declared: list[Requirement] = list(parse_package_json(manifest))
-        return await sources.npm.resolve(declared)
+        resolved, unresolvable = await sources.npm.resolve(declared)
+        return NPM, resolved, unresolvable
 
     try:
         content = await sources.github.fetch_requirements(owner, repo, ref)
@@ -237,7 +248,7 @@ async def _declared_by_repository(
 
     understood, ignored = parse_requirements_txt(content)
     resolved, unresolvable = await sources.pypi.resolve(list(understood))
-    return resolved, unresolvable + ignored
+    return PYPI, resolved, unresolvable + ignored
 
 
 @app.get("/health")
@@ -254,7 +265,7 @@ async def report_from_npm_lockfile(
 ) -> Report:
     """Report on the contents of a package-lock.json sent as the request body."""
     return await _report_from_lockfile(
-        target=lockfile.get("name") or "unnamed project",
+        name=lockfile.get("name") or "unnamed project",
         lockfile=lockfile,
         sources=sources,
         limit=limit,
@@ -317,7 +328,7 @@ async def report_for_github_repository(
 
     Only dependency files are fetched; nothing is cloned or executed.
     """
-    target = f"{owner}/{repo}@{ref}"
+    name = f"{owner}/{repo}@{ref}"
 
     try:
         lockfile = await sources.github.fetch_lockfile(owner, repo, ref)
@@ -325,7 +336,7 @@ async def report_for_github_repository(
         pass
     else:
         return await _report_from_lockfile(
-            target=target, lockfile=lockfile, sources=sources, limit=limit
+            name=name, lockfile=lockfile, sources=sources, limit=limit
         )
 
     found = await _declared_by_repository(owner, repo, ref, sources)
@@ -338,9 +349,9 @@ async def report_for_github_repository(
             ),
         )
 
-    declared, unresolvable = found
+    ecosystem, declared, unresolvable = found
     return await _report_from_declared(
-        target=target,
+        target=Target(name=name, ecosystem=ecosystem, source=MANIFEST),
         declared=declared,
         unresolvable=unresolvable,
         sources=sources,
@@ -365,18 +376,14 @@ async def report_for_npm_package(
     The name is a query parameter so that scoped packages such as ``@babel/core``
     survive without ambiguity in the path.
     """
-    root = PackageRef(name=name, version=version)
     try:
-        resolution = await resolve_tree(
-            root, cache=sources.cache, client=sources.registry, depth=depth
+        return await report_for_package(
+            name,
+            version,
+            cache=sources.cache,
+            registry=sources.registry,
+            osv=sources.osv,
+            depth=depth,
         )
     except PackageNotFound as missing:
         raise HTTPException(status_code=404, detail=str(missing)) from missing
-
-    return await build_report(
-        target=f"{name}@{version}",
-        dependencies=to_dependencies(resolution.packages),
-        client=sources.osv,
-        truncated=resolution.truncated,
-        unresolved=resolution.unresolved,
-    )

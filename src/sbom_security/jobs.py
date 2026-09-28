@@ -15,10 +15,9 @@ import httpx
 from sbom_security.cache import SbomCache
 from sbom_security.models import PackageRef
 from sbom_security.osv import OsvClient
-from sbom_security.purl import to_dependencies, to_purl
+from sbom_security.purl import to_purl
 from sbom_security.registry import DepsDevClient
-from sbom_security.report import as_dict, build_report
-from sbom_security.resolver import resolve_tree
+from sbom_security.report import as_dict, report_for_package
 
 CACHE_DIRECTORY = Path(os.environ.get("SBOM_CACHE_DIR", ".cache"))
 
@@ -89,17 +88,13 @@ async def report_on_package(
     """
     sources = sources or Sources.default()
 
-    resolution = await resolve_tree(
-        PackageRef(name=name, version=version),
+    report = await report_for_package(
+        name,
+        version,
         cache=sources.cache,
-        client=sources.registry,
+        registry=sources.registry,
+        osv=sources.osv,
         depth=depth,
-    )
-    report = await build_report(
-        target=f"{name}@{version}",
-        dependencies=to_dependencies(resolution.packages),
-        client=sources.osv,
-        truncated=resolution.truncated,
     )
 
     payload = as_dict(report)

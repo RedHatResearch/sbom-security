@@ -66,17 +66,25 @@ curl -X POST http://127.0.0.1:8010/reports/npm-lockfile \
 curl 'http://127.0.0.1:8010/reports/npm-package?name=express&version=4.18.0&depth=3'
 ```
 
-### The response
+### The report
 
 ```json
 {
-  "target": "example-project",
+  "schema_version": "1.0",
+  "tool": "sbom-security",
+  "generated_at": "2026-09-28T09:15:00+00:00",
+  "target": {
+    "name": "OWASP/NodeGoat@HEAD",
+    "ecosystem": "npm",
+    "source": "lockfile"
+  },
+  "summary": { "dependencies": 1091, "vulnerable": 130, "vulnerabilities": 187 },
   "dependencies": [
-    { "name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0" }
+    { "name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0", "ecosystem": "npm" }
   ],
   "findings": [
     {
-      "dependency": { "name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0" },
+      "dependency": { "name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0", "ecosystem": "npm" },
       "vulnerabilities": [
         {
           "id": "GHSA-rv95-896h-c2vc",
@@ -88,14 +96,31 @@ curl 'http://127.0.0.1:8010/reports/npm-package?name=express&version=4.18.0&dept
       ]
     }
   ],
-  "truncated": false
+  "truncated": false,
+  "unresolved": []
 }
 ```
 
-Every dependency is listed; `findings` covers only those with known vulnerabilities.
-`truncated` says a limit stopped the scan short, so a partial result is never mistaken
-for a clean one. A scan examines 500 dependencies by default — raise it with
-`&limit=3000`.
+**`target.source` says which question the report answers**, and the answers differ:
+
+| Source | Versions are | Answers |
+| ------ | ------------ | ------- |
+| `lockfile` | exactly what is installed | *What does this project have?* |
+| `manifest` | declared ranges resolved to the newest match | *What would this project get if it installed today?* |
+| `package` | what a released version declares | *What does this package pull in?* |
+
+This matters when reading a result. A `manifest` scan showing no findings does not mean
+the project is safe — it means the *current* versions of its dependencies are clean.
+What the project actually runs may well be older, and a `lockfile` scan of the same
+project will often find more.
+
+**Completeness is reported, never implied.** `truncated` means a limit stopped the scan
+short. `unresolved` names dependencies that could not be resolved at all — a local path,
+a git dependency, an unpublished package, a `-r other.txt` that was not followed. A scan
+examines 500 dependencies by default; raise it with `&limit=3000`.
+
+`generated_at` matters because vulnerability data changes daily: an undated report
+cannot be compared against a later one.
 
 ## Submitting work instead of waiting
 

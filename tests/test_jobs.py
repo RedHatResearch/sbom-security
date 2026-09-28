@@ -113,7 +113,7 @@ async def test_produces_a_report(tmp_path: Path):
         "express", "4.18.0", depth=3, sources=sources_for(tmp_path)
     )
 
-    assert report["target"] == "express@4.18.0"
+    assert report["target"]["name"] == "express@4.18.0"
     assert [dep["name"] for dep in report["dependencies"]] == ["express", "accepts"]
     # Still plain Python here, so tuples have not yet become JSON arrays.
     assert report["findings"][0]["vulnerabilities"][0]["aliases"] == ("CVE-2024-0001",)
@@ -140,7 +140,7 @@ async def test_delivers_the_report_to_a_callback(tmp_path: Path):
     )
 
     assert len(callbacks.delivered) == 1
-    assert callbacks.delivered[0]["target"] == "express@4.18.0"
+    assert callbacks.delivered[0]["target"]["name"] == "express@4.18.0"
 
 
 async def test_nothing_is_delivered_without_a_callback_url(tmp_path: Path):
@@ -165,7 +165,7 @@ async def test_a_rejected_callback_does_not_lose_the_work(tmp_path: Path):
     )
 
     # The result still comes back, ready to be collected instead.
-    assert report["target"] == "express@4.18.0"
+    assert report["target"]["name"] == "express@4.18.0"
 
 
 async def test_an_unknown_package_fails_the_work(tmp_path: Path):

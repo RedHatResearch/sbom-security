@@ -14,3 +14,7 @@ max-line-length = 100
 # arguments, so the default limit of five is too low for this framework.
 max-args = 8
 max-positional-arguments = 8
+
+# A report is a document rather than an object with behaviour, so its field count
+# reflects what the format has to express, not how much the class is doing.
+max-attributes = 12

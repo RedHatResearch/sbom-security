@@ -206,7 +206,7 @@ def test_reports_on_a_submitted_lockfile(client):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["target"] == "example-project"
+    assert payload["target"]["name"] == "example-project"
     assert len(payload["dependencies"]) == 5
 
 
@@ -224,13 +224,53 @@ def test_accepts_a_lockfile_with_no_dependencies(client):
     response = client.post("/reports/npm-lockfile", json={"name": "empty"})
 
     assert response.status_code == 200
-    assert response.json() == {
-        "target": "empty",
-        "dependencies": [],
-        "findings": [],
-        "truncated": False,
-        "unresolved": [],
+    payload = response.json()
+    assert payload["dependencies"] == []
+    assert payload["findings"] == []
+    assert payload["truncated"] is False
+    assert payload["unresolved"] == []
+    assert payload["summary"] == {
+        "dependencies": 0,
+        "vulnerable": 0,
+        "vulnerabilities": 0,
     }
+
+
+def test_a_report_says_which_ecosystem_and_source_it_came_from(client):
+    payload = client.post("/reports/npm-lockfile", json=LOCKFILE).json()
+
+    assert payload["target"] == {
+        "name": "example-project",
+        "ecosystem": "npm",
+        "source": "lockfile",
+    }
+
+
+def test_a_manifest_report_is_marked_as_resolved_rather_than_installed(client):
+    # The distinction matters: a manifest says what you would get today, a lockfile
+    # says what you actually have, and the second is usually older.
+    payload = client.get(
+        "/reports/github", params={"owner": "expressjs", "repo": "express"}
+    ).json()
+
+    assert payload["target"]["source"] == "manifest"
+
+
+def test_a_python_report_names_its_ecosystem(client):
+    payload = client.get(
+        "/reports/github", params={"owner": "pallets", "repo": "flask"}
+    ).json()
+
+    assert payload["target"]["ecosystem"] == "pypi"
+    assert payload["dependencies"][0]["ecosystem"] == "pypi"
+
+
+def test_a_report_carries_a_schema_version_and_a_timestamp(client):
+    payload = client.post("/reports/npm-lockfile", json=LOCKFILE).json()
+
+    assert payload["schema_version"] == "1.0"
+    assert payload["tool"] == "sbom-security"
+    assert payload["generated_at"]
 
 
 def test_reports_on_a_package_and_its_dependencies(client):
@@ -240,7 +280,7 @@ def test_reports_on_a_package_and_its_dependencies(client):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["target"] == "express@4.18.0"
+    assert payload["target"]["name"] == "express@4.18.0"
     # The package itself, plus what it depends on.
     assert [dep["name"] for dep in payload["dependencies"]] == ["express", "accepts"]
 
@@ -292,7 +332,7 @@ def test_reports_on_a_github_repository(client):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["target"] == "OWASP/NodeGoat@HEAD"
+    assert payload["target"]["name"] == "OWASP/NodeGoat@HEAD"
     assert len(payload["dependencies"]) == 5
     assert payload["findings"][0]["dependency"]["name"] == "express"
 
@@ -303,7 +343,7 @@ def test_github_report_names_the_ref_that_was_read(client):
         params={"owner": "OWASP", "repo": "NodeGoat", "ref": "master"},
     )
 
-    assert response.json()["target"] == "OWASP/NodeGoat@master"
+    assert response.json()["target"]["name"] == "OWASP/NodeGoat@master"
 
 
 def test_a_repository_without_a_lockfile_falls_back_to_its_manifest(client):
@@ -314,7 +354,7 @@ def test_a_repository_without_a_lockfile_falls_back_to_its_manifest(client):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["target"] == "expressjs/express@HEAD"
+    assert payload["target"]["name"] == "expressjs/express@HEAD"
     # The declared range ^4.18.0 resolved to the highest published match.
     assert payload["dependencies"][0]["name"] == "express"
     assert payload["dependencies"][0]["version"] == "4.18.0"

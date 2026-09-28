@@ -37,7 +37,12 @@ def to_purl(ref: PackageRef) -> str:
 
 def to_dependency(ref: PackageRef) -> Dependency:
     """Attach a Package URL to a package reference."""
-    return Dependency(name=ref.name, version=ref.version, purl=to_purl(ref))
+    return Dependency(
+        name=ref.name,
+        version=ref.version,
+        purl=to_purl(ref),
+        ecosystem=ref.ecosystem,
+    )
 
 
 def to_dependencies(refs: Iterable[PackageRef]) -> tuple[Dependency, ...]:
