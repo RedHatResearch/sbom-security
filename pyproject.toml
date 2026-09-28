@@ -15,6 +15,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "arq",
+    "node-semver",
 ]
 
 [project.optional-dependencies]

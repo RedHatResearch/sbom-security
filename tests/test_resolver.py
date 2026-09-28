@@ -9,7 +9,7 @@ import pytest
 from sbom_security.cache import SbomCache
 from sbom_security.models import PackageRef
 from sbom_security.registry import DepsDevClient, PackageNotFound
-from sbom_security.resolver import resolve_tree, sbom_for
+from sbom_security.resolver import resolve_declared, resolve_tree, sbom_for
 
 EXPRESS = PackageRef("express", "4.18.0")
 
@@ -176,6 +176,53 @@ async def test_an_unknown_package_is_recorded_and_the_walk_continues(tmp_path: P
 
     assert names(resolution) == {"root", "missing", "ms"}
     assert resolution.unresolved == ("pkg:npm/missing@9.9.9",)
+
+
+async def test_a_declared_set_is_walked_without_a_root(tmp_path: Path):
+    # A project with no lockfile names its first level directly, so there is no
+    # single package to start from.
+    resolution = await resolve_declared(
+        [PackageRef("accepts", "1.3.8")], SbomCache(tmp_path), CHAIN.client(), depth=2
+    )
+
+    assert resolution.root is None
+    assert names(resolution) == {"accepts", "mime-types"}
+
+
+async def test_depth_one_covers_only_what_was_declared(tmp_path: Path):
+    resolution = await resolve_declared(
+        [PackageRef("accepts", "1.3.8")], SbomCache(tmp_path), CHAIN.client(), depth=1
+    )
+
+    assert names(resolution) == {"accepts"}
+    assert resolution.truncated is True
+
+
+async def test_several_declared_packages_are_walked_together(tmp_path: Path):
+    registry = FakeRegistry(
+        {
+            "left@1.0.0": graph("left", "1.0.0", [("shared", "1.0.0")]),
+            "right@1.0.0": graph("right", "1.0.0", [("shared", "1.0.0")]),
+            "shared@1.0.0": graph("shared", "1.0.0", []),
+        }
+    )
+
+    resolution = await resolve_declared(
+        [PackageRef("left", "1.0.0"), PackageRef("right", "1.0.0")],
+        SbomCache(tmp_path),
+        registry.client(),
+        depth=9,
+    )
+
+    assert names(resolution) == {"left", "right", "shared"}
+    assert registry.requested.count("shared@1.0.0") == 1
+
+
+async def test_declaring_nothing_resolves_to_nothing(tmp_path: Path):
+    resolution = await resolve_declared([], SbomCache(tmp_path), CHAIN.client(), depth=3)
+
+    assert resolution.packages == ()
+    assert resolution.truncated is False
 
 
 async def test_the_cache_is_shared_across_walks(tmp_path: Path):

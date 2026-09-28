@@ -19,6 +19,19 @@ class PackageRef:
 
 
 @dataclass(frozen=True)
+class Requirement:
+    """A dependency as a manifest declares it: a name and a range, not a version.
+
+    ``express: ^4.18.0`` says which versions would be acceptable, not which one is
+    installed. Matching against vulnerability data needs the latter, so a requirement
+    has to be resolved before it is of any use.
+    """
+
+    name: str
+    range: str
+
+
+@dataclass(frozen=True)
 class Sbom:
     """The direct dependencies of one package version.
 
@@ -42,7 +55,7 @@ class Resolution:
     looked up. Both exist so that a partial answer is never mistaken for a complete one.
     """
 
-    root: PackageRef
+    root: PackageRef | None
     packages: tuple[PackageRef, ...]
     depth: int
     truncated: bool = False
@@ -88,11 +101,13 @@ class Report:
 
     ``dependencies`` holds everything that was resolved; ``findings`` holds only
     the subset with known vulnerabilities. ``truncated`` says whether a limit stopped
-    the whole set from being examined, so that a partial report is never mistaken for
-    a clean one.
+    the whole set from being examined, and ``unresolved`` names what could not be
+    resolved at all — a local path, a git dependency, a package the registry does not
+    know. Both exist so that a partial report is never mistaken for a clean one.
     """
 
     target: str
     dependencies: tuple[Dependency, ...]
     findings: tuple[Finding, ...]
     truncated: bool = False
+    unresolved: tuple[str, ...] = ()

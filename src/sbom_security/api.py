@@ -1,7 +1,7 @@
 """REST interface.
 
-A repository is submitted as its lockfile, or named so that its lockfile can be
-fetched. Nothing is cloned and no package manager is run, so no code from the
+A repository is submitted as its lockfile, or named so that its dependency files can
+be fetched. Nothing is cloned and no package manager is run, so no code from the
 repository under examination is ever executed.
 
 Reports can be produced immediately, or submitted as work to be picked up by a worker
@@ -11,6 +11,7 @@ first time takes longer than a caller wants to hold a connection open.
 
 import os
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -18,16 +19,18 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, s
 
 from sbom_security import __version__
 from sbom_security.cache import SbomCache
-from sbom_security.github import DEFAULT_REF, GitHubSource, LockfileNotFound
+from sbom_security.github import DEFAULT_REF, FileNotFound, GitHubSource, LockfileNotFound
 from sbom_security.jobs import NOT_FOUND, JobState
 from sbom_security.lockfile import parse_package_lock_data
+from sbom_security.manifest import parse_package_json, project_name
 from sbom_security.models import PackageRef, Report
+from sbom_security.npm import NpmRegistry
 from sbom_security.osv import OsvClient
 from sbom_security.purl import to_dependencies
 from sbom_security.queue import ArqQueue, connect
 from sbom_security.registry import DepsDevClient, PackageNotFound
 from sbom_security.report import build_report
-from sbom_security.resolver import DEFAULT_DEPTH, resolve_tree
+from sbom_security.resolver import DEFAULT_DEPTH, resolve_declared, resolve_tree
 
 # Large projects pin thousands of packages, and each distinct advisory costs another
 # request to OSV. The default keeps an unattended call bounded; raise it deliberately.
@@ -61,6 +64,7 @@ Depth = Annotated[
     ),
 ]
 
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Hold one Redis connection pool for the lifetime of the process.
@@ -93,7 +97,7 @@ def get_osv_client() -> OsvClient:
 
 
 def get_github_source() -> GitHubSource:
-    """Provide the lockfile source, so tests can substitute their own."""
+    """Provide the repository file source, so tests can substitute their own."""
     return GitHubSource()
 
 
@@ -102,9 +106,39 @@ def get_registry_client() -> DepsDevClient:
     return DepsDevClient()
 
 
+def get_npm_registry() -> NpmRegistry:
+    """Provide the npm registry, so tests can substitute their own."""
+    return NpmRegistry()
+
+
 def get_cache() -> SbomCache:
     """Provide the SBOM cache, so tests can point it at a temporary directory."""
     return SbomCache(CACHE_DIRECTORY)
+
+
+@dataclass(frozen=True)
+class Sources:
+    """Everything a report is built from.
+
+    Gathering these into one dependency keeps endpoint signatures readable while each
+    part stays separately substitutable, since they are resolved individually.
+    """
+
+    osv: OsvClient
+    github: GitHubSource
+    registry: DepsDevClient
+    npm: NpmRegistry
+    cache: SbomCache
+
+
+def get_sources(
+    osv: Annotated[OsvClient, Depends(get_osv_client)],
+    github: Annotated[GitHubSource, Depends(get_github_source)],
+    registry: Annotated[DepsDevClient, Depends(get_registry_client)],
+    npm: Annotated[NpmRegistry, Depends(get_npm_registry)],
+    cache: Annotated[SbomCache, Depends(get_cache)],
+) -> Sources:
+    return Sources(osv=osv, github=github, registry=registry, npm=npm, cache=cache)
 
 
 async def get_queue(request: Request) -> ArqQueue:
@@ -127,20 +161,41 @@ async def get_queue(request: Request) -> ArqQueue:
     return ArqQueue(redis)
 
 
-async def _report(
-    target: str,
-    lockfile: dict[str, Any],
-    client: OsvClient,
-    limit: int,
+async def _report_from_lockfile(
+    target: str, lockfile: dict[str, Any], sources: Sources, limit: int
 ) -> Report:
-    """Report on a parsed lockfile, examining at most ``limit`` dependencies."""
+    """Report on a lockfile, which already pins every version it names."""
     refs = parse_package_lock_data(lockfile)
-    truncated = len(refs) > limit
     return await build_report(
         target=target,
         dependencies=to_dependencies(refs[:limit]),
-        client=client,
-        truncated=truncated,
+        client=sources.osv,
+        truncated=len(refs) > limit,
+    )
+
+
+async def _report_from_manifest(
+    manifest: dict[str, Any], sources: Sources, limit: int, depth: int
+) -> Report:
+    """Report on a manifest, whose declared ranges have to be resolved first.
+
+    A manifest says what was asked for, not what was installed, so each range is
+    resolved to a published version before anything can be matched.
+    """
+    declared, unresolvable = await sources.npm.resolve(
+        list(parse_package_json(manifest))
+    )
+    resolution = await resolve_declared(
+        declared, cache=sources.cache, client=sources.registry, depth=depth
+    )
+    packages = resolution.packages[:limit]
+
+    return await build_report(
+        target=project_name(manifest),
+        dependencies=to_dependencies(packages),
+        client=sources.osv,
+        truncated=resolution.truncated or len(resolution.packages) > limit,
+        unresolved=unresolvable + resolution.unresolved,
     )
 
 
@@ -153,14 +208,14 @@ def health() -> dict[str, str]:
 @app.post("/reports/npm-lockfile")
 async def report_from_npm_lockfile(
     lockfile: dict[str, Any],
-    client: Annotated[OsvClient, Depends(get_osv_client)],
+    sources: Annotated[Sources, Depends(get_sources)],
     limit: Limit = DEFAULT_LIMIT,
 ) -> Report:
     """Report on the contents of a package-lock.json sent as the request body."""
-    return await _report(
+    return await _report_from_lockfile(
         target=lockfile.get("name") or "unnamed project",
         lockfile=lockfile,
-        client=client,
+        sources=sources,
         limit=limit,
     )
 
@@ -207,26 +262,48 @@ async def job(
 async def report_for_github_repository(
     owner: str,
     repo: str,
-    client: Annotated[OsvClient, Depends(get_osv_client)],
-    source: Annotated[GitHubSource, Depends(get_github_source)],
+    sources: Annotated[Sources, Depends(get_sources)],
     ref: str = DEFAULT_REF,
     limit: Limit = DEFAULT_LIMIT,
+    depth: Depth = DEFAULT_DEPTH,
 ) -> Report:
-    """Report on a public GitHub repository by reading its committed lockfile.
+    """Report on a public GitHub repository.
 
-    Only ``package-lock.json`` is fetched. The default ref resolves to the
-    repository's default branch, whatever it happens to be called.
+    A lockfile is used where the repository commits one, since it records exactly what
+    is installed. Where it does not — libraries usually gitignore it, and yarn and pnpm
+    projects never produce one — the manifest is read instead and its declared ranges
+    are resolved. Only those files are fetched; nothing is cloned or executed.
     """
     try:
-        lockfile = await source.fetch_lockfile(owner, repo, ref)
-    except LockfileNotFound as missing:
-        raise HTTPException(status_code=404, detail=str(missing)) from missing
+        lockfile = await sources.github.fetch_lockfile(owner, repo, ref)
+    except LockfileNotFound:
+        pass
+    else:
+        return await _report_from_lockfile(
+            target=f"{owner}/{repo}@{ref}",
+            lockfile=lockfile,
+            sources=sources,
+            limit=limit,
+        )
 
-    return await _report(
+    try:
+        manifest = await sources.github.fetch_manifest(owner, repo, ref)
+    except FileNotFound as missing:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"{owner}/{repo} has neither a package-lock.json nor a package.json "
+                f"at {ref}."
+            ),
+        ) from missing
+
+    report = await _report_from_manifest(manifest, sources, limit, depth)
+    return Report(
         target=f"{owner}/{repo}@{ref}",
-        lockfile=lockfile,
-        client=client,
-        limit=limit,
+        dependencies=report.dependencies,
+        findings=report.findings,
+        truncated=report.truncated,
+        unresolved=report.unresolved,
     )
 
 
@@ -234,9 +311,7 @@ async def report_for_github_repository(
 async def report_for_npm_package(
     name: str,
     version: str,
-    client: Annotated[OsvClient, Depends(get_osv_client)],
-    registry: Annotated[DepsDevClient, Depends(get_registry_client)],
-    cache: Annotated[SbomCache, Depends(get_cache)],
+    sources: Annotated[Sources, Depends(get_sources)],
     depth: Depth = DEFAULT_DEPTH,
 ) -> Report:
     """Report on an npm package and the dependencies it pulls in.
@@ -250,13 +325,16 @@ async def report_for_npm_package(
     """
     root = PackageRef(name=name, version=version)
     try:
-        resolution = await resolve_tree(root, cache, registry, depth=depth)
+        resolution = await resolve_tree(
+            root, cache=sources.cache, client=sources.registry, depth=depth
+        )
     except PackageNotFound as missing:
         raise HTTPException(status_code=404, detail=str(missing)) from missing
 
     return await build_report(
         target=f"{name}@{version}",
         dependencies=to_dependencies(resolution.packages),
-        client=client,
+        client=sources.osv,
         truncated=resolution.truncated,
+        unresolved=resolution.unresolved,
     )

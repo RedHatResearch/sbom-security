@@ -1,16 +1,22 @@
-"""Tests for reading a lockfile from a public GitHub repository."""
+"""Tests for reading dependency files from a public GitHub repository."""
 
 import httpx
 import pytest
 
-from sbom_security.github import GitHubSource, LockfileNotFound
+from sbom_security.github import FileNotFound, GitHubSource, LockfileNotFound
 
 LOCKFILE = {"name": "example", "lockfileVersion": 3, "packages": {}}
+MANIFEST = {"name": "example", "dependencies": {"express": "^4.18.0"}}
 
 
-def source_returning(status: int, payload: dict | None = None) -> GitHubSource:
+def source_serving(files: dict[str, dict]) -> GitHubSource:
+    """A source that has only the named files."""
+
     def handle(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(status, json=payload or {})
+        filename = request.url.path.rsplit("/", 1)[-1]
+        if filename not in files:
+            return httpx.Response(404, text="404: Not Found")
+        return httpx.Response(200, json=files[filename])
 
     return GitHubSource(transport=httpx.MockTransport(handle))
 
@@ -29,20 +35,36 @@ def test_builds_the_raw_url_for_an_explicit_ref():
 
 
 async def test_returns_the_parsed_lockfile():
-    source = source_returning(200, LOCKFILE)
+    source = source_serving({"package-lock.json": LOCKFILE})
 
     assert await source.fetch_lockfile("OWASP", "NodeGoat") == LOCKFILE
 
 
-async def test_reports_a_missing_lockfile_clearly():
-    source = source_returning(404)
+async def test_returns_the_parsed_manifest():
+    source = source_serving({"package.json": MANIFEST})
 
-    with pytest.raises(LockfileNotFound, match="no package-lock.json"):
+    assert await source.fetch_manifest("expressjs", "express") == MANIFEST
+
+
+async def test_reports_a_missing_lockfile_clearly():
+    source = source_serving({"package.json": MANIFEST})
+
+    with pytest.raises(LockfileNotFound, match="package-lock.json"):
         await source.fetch_lockfile("expressjs", "express")
 
 
+async def test_reports_a_missing_manifest_clearly():
+    source = source_serving({})
+
+    with pytest.raises(FileNotFound, match="package.json"):
+        await source.fetch_manifest("some", "repo")
+
+
 async def test_raises_on_other_failures():
-    source = source_returning(500)
+    def handle(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={})
+
+    source = GitHubSource(transport=httpx.MockTransport(handle))
 
     with pytest.raises(httpx.HTTPStatusError):
         await source.fetch_lockfile("OWASP", "NodeGoat")

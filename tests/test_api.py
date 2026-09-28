@@ -15,6 +15,7 @@ from sbom_security.api import (
     app,
     get_cache,
     get_github_source,
+    get_npm_registry,
     get_osv_client,
     get_queue,
     get_registry_client,
@@ -22,6 +23,7 @@ from sbom_security.api import (
 from sbom_security.cache import SbomCache
 from sbom_security.github import GitHubSource
 from sbom_security.jobs import COMPLETE, NOT_FOUND, QUEUED, JobState, job_id
+from sbom_security.npm import NpmRegistry
 from sbom_security.osv import OsvClient
 from sbom_security.registry import DepsDevClient
 
@@ -76,11 +78,40 @@ def handle(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json=ADVISORY)
 
 
-def serve_lockfile(request: httpx.Request) -> httpx.Response:
-    """Serve the fixture lockfile for any repository except a known-missing one."""
-    if "expressjs" in request.url.path:
+MANIFEST = {"name": "manifest-project", "dependencies": {"express": "^4.18.0"}}
+
+PUBLISHED_VERSIONS = {"express": ["4.17.0", "4.18.0"]}
+
+
+def serve_repository_files(request: httpx.Request) -> httpx.Response:
+    """Serve repository files.
+
+    `OWASP/NodeGoat` has a lockfile. `expressjs/express` has only a manifest, which is
+    the case that exercises range resolution. `empty/repo` has neither.
+    """
+    filename = request.url.path.rsplit("/", 1)[-1]
+
+    if "empty" in request.url.path:
         return httpx.Response(404, text="404: Not Found")
-    return httpx.Response(200, json=LOCKFILE)
+
+    if "expressjs" in request.url.path:
+        if filename == "package.json":
+            return httpx.Response(200, json=MANIFEST)
+        return httpx.Response(404, text="404: Not Found")
+
+    if filename == "package-lock.json":
+        return httpx.Response(200, json=LOCKFILE)
+    return httpx.Response(404, text="404: Not Found")
+
+
+def serve_published_versions(request: httpx.Request) -> httpx.Response:
+    """Serve the npm registry's version list."""
+    name = request.url.path.lstrip("/").replace("%2F", "/")
+    if name not in PUBLISHED_VERSIONS:
+        return httpx.Response(404, json={})
+    return httpx.Response(
+        200, json={"versions": {version: {} for version in PUBLISHED_VERSIONS[name]}}
+    )
 
 
 def serve_graph(request: httpx.Request) -> httpx.Response:
@@ -123,10 +154,13 @@ def fixture_client(tmp_path: Path, queue: FakeQueue):
         transport=httpx.MockTransport(handle)
     )
     app.dependency_overrides[get_github_source] = lambda: GitHubSource(
-        transport=httpx.MockTransport(serve_lockfile)
+        transport=httpx.MockTransport(serve_repository_files)
     )
     app.dependency_overrides[get_registry_client] = lambda: DepsDevClient(
         transport=httpx.MockTransport(serve_graph)
+    )
+    app.dependency_overrides[get_npm_registry] = lambda: NpmRegistry(
+        transport=httpx.MockTransport(serve_published_versions)
     )
     app.dependency_overrides[get_cache] = lambda: SbomCache(tmp_path)
     app.dependency_overrides[get_queue] = lambda: queue
@@ -169,6 +203,7 @@ def test_accepts_a_lockfile_with_no_dependencies(client):
         "dependencies": [],
         "findings": [],
         "truncated": False,
+        "unresolved": [],
     }
 
 
@@ -245,13 +280,34 @@ def test_github_report_names_the_ref_that_was_read(client):
     assert response.json()["target"] == "OWASP/NodeGoat@master"
 
 
-def test_missing_lockfile_is_reported_as_not_found(client):
+def test_a_repository_without_a_lockfile_falls_back_to_its_manifest(client):
+    # expressjs/express commits no lockfile, as most libraries do not.
     response = client.get(
         "/reports/github", params={"owner": "expressjs", "repo": "express"}
     )
 
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["target"] == "expressjs/express@HEAD"
+    # The declared range ^4.18.0 resolved to the highest published match.
+    assert payload["dependencies"][0]["name"] == "express"
+    assert payload["dependencies"][0]["version"] == "4.18.0"
+
+
+def test_a_manifest_report_still_finds_vulnerabilities(client):
+    payload = client.get(
+        "/reports/github", params={"owner": "expressjs", "repo": "express"}
+    ).json()
+
+    assert payload["findings"][0]["vulnerabilities"][0]["aliases"] == ["CVE-2024-0001"]
+
+
+def test_a_repository_with_neither_file_is_reported_as_not_found(client):
+    response = client.get("/reports/github", params={"owner": "empty", "repo": "repo"})
+
     assert response.status_code == 404
-    assert "package-lock.json" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert "package-lock.json" in detail and "package.json" in detail
 
 
 def test_a_report_cut_short_by_the_limit_says_so(client):

@@ -36,6 +36,7 @@ async def build_report(
     dependencies: Sequence[Dependency],
     client: OsvClient,
     truncated: bool = False,
+    unresolved: tuple[str, ...] = (),
 ) -> Report:
     """Match dependencies against the vulnerability source and collect the results.
 
@@ -53,6 +54,7 @@ async def build_report(
         dependencies=tuple(dependencies),
         findings=findings,
         truncated=truncated,
+        unresolved=unresolved,
     )
 
 
