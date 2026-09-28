@@ -2,8 +2,8 @@
 
 [![tests](https://github.com/RedHatResearch/sbom-security/actions/workflows/tests.yml/badge.svg)](https://github.com/RedHatResearch/sbom-security/actions/workflows/tests.yml)
 
-Report the dependencies of an npm package or repository, together with the known
-vulnerabilities affecting them.
+Report the dependencies of a package or repository, together with the known
+vulnerabilities affecting them. Covers npm and Python.
 
 ## Quick start
 
@@ -37,12 +37,20 @@ Interactive API documentation: **http://127.0.0.1:8010/docs**
 
 ## Usage
 
-**A public repository.** Only `package-lock.json` is fetched — nothing is cloned, no
-package manager runs, and no code from the repository is executed.
+**A public repository.** Nothing is cloned, no package manager runs, and no code from
+the repository is executed — only its dependency files are read.
 
 ```bash
 curl 'http://127.0.0.1:8010/reports/github?owner=OWASP&repo=NodeGoat'
 ```
+
+The repository is read from whichever of these it has, in order:
+
+| File | Ecosystem | Versions |
+| ---- | --------- | -------- |
+| `package-lock.json` | npm | Already exact |
+| `package.json` | npm | Ranges, resolved against the registry |
+| `requirements.txt` | Python | Pins or ranges, resolved against PyPI |
 
 **A lockfile you already have.**
 

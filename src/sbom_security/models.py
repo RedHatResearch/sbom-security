@@ -7,15 +7,23 @@ construct in tests, and FastAPI serializes them directly.
 from dataclasses import dataclass
 
 
+# Package URL type strings, which are also what deps.dev calls these ecosystems.
+NPM = "npm"
+PYPI = "pypi"
+
+
 @dataclass(frozen=True)
 class PackageRef:
-    """A package at an exact version, as read from a lockfile.
+    """A package at an exact version, as read from a dependency file.
 
-    This is what a source file gives us, before normalization to a Package URL.
+    This is what a source file gives us, before normalization to a Package URL. The
+    ecosystem travels with the reference because a name alone is ambiguous: an npm
+    package and a PyPI package can share one, and they are not the same software.
     """
 
     name: str
     version: str
+    ecosystem: str = NPM
 
 
 @dataclass(frozen=True)
@@ -29,6 +37,7 @@ class Requirement:
 
     name: str
     range: str
+    ecosystem: str = NPM
 
 
 @dataclass(frozen=True)

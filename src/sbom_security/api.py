@@ -22,14 +22,17 @@ from sbom_security.cache import SbomCache
 from sbom_security.github import DEFAULT_REF, FileNotFound, GitHubSource, LockfileNotFound
 from sbom_security.jobs import NOT_FOUND, JobState
 from sbom_security.lockfile import parse_package_lock_data
-from sbom_security.manifest import parse_package_json, project_name
+from sbom_security.manifest import parse_package_json
 from sbom_security.models import PackageRef, Report
+from sbom_security.models import Requirement
 from sbom_security.npm import NpmRegistry
 from sbom_security.osv import OsvClient
 from sbom_security.purl import to_dependencies
+from sbom_security.pypi import PyPiIndex
 from sbom_security.queue import ArqQueue, connect
 from sbom_security.registry import DepsDevClient, PackageNotFound
 from sbom_security.report import build_report
+from sbom_security.requirements import parse_requirements_txt
 from sbom_security.resolver import DEFAULT_DEPTH, resolve_declared, resolve_tree
 
 # Large projects pin thousands of packages, and each distinct advisory costs another
@@ -111,6 +114,11 @@ def get_npm_registry() -> NpmRegistry:
     return NpmRegistry()
 
 
+def get_pypi_index() -> PyPiIndex:
+    """Provide the Python package index, so tests can substitute their own."""
+    return PyPiIndex()
+
+
 def get_cache() -> SbomCache:
     """Provide the SBOM cache, so tests can point it at a temporary directory."""
     return SbomCache(CACHE_DIRECTORY)
@@ -128,6 +136,7 @@ class Sources:
     github: GitHubSource
     registry: DepsDevClient
     npm: NpmRegistry
+    pypi: PyPiIndex
     cache: SbomCache
 
 
@@ -136,9 +145,12 @@ def get_sources(
     github: Annotated[GitHubSource, Depends(get_github_source)],
     registry: Annotated[DepsDevClient, Depends(get_registry_client)],
     npm: Annotated[NpmRegistry, Depends(get_npm_registry)],
+    pypi: Annotated[PyPiIndex, Depends(get_pypi_index)],
     cache: Annotated[SbomCache, Depends(get_cache)],
 ) -> Sources:
-    return Sources(osv=osv, github=github, registry=registry, npm=npm, cache=cache)
+    return Sources(
+        osv=osv, github=github, registry=registry, npm=npm, pypi=pypi, cache=cache
+    )
 
 
 async def get_queue(request: Request) -> ArqQueue:
@@ -174,29 +186,58 @@ async def _report_from_lockfile(
     )
 
 
-async def _report_from_manifest(
-    manifest: dict[str, Any], sources: Sources, limit: int, depth: int
+async def _report_from_declared(
+    target: str,
+    declared: tuple[PackageRef, ...],
+    unresolvable: tuple[str, ...],
+    sources: Sources,
+    limit: int,
+    depth: int,
 ) -> Report:
-    """Report on a manifest, whose declared ranges have to be resolved first.
+    """Report on the dependencies a project declares, once they have been resolved.
 
-    A manifest says what was asked for, not what was installed, so each range is
-    resolved to a published version before anything can be matched.
+    A manifest says what was asked for, not what was installed, so ranges are resolved
+    to released versions before anything can be matched. What could not be resolved is
+    carried through rather than quietly dropped.
     """
-    declared, unresolvable = await sources.npm.resolve(
-        list(parse_package_json(manifest))
-    )
     resolution = await resolve_declared(
         declared, cache=sources.cache, client=sources.registry, depth=depth
     )
     packages = resolution.packages[:limit]
 
     return await build_report(
-        target=project_name(manifest),
+        target=target,
         dependencies=to_dependencies(packages),
         client=sources.osv,
         truncated=resolution.truncated or len(resolution.packages) > limit,
         unresolved=unresolvable + resolution.unresolved,
     )
+
+
+async def _declared_by_repository(
+    owner: str, repo: str, ref: str, sources: Sources
+) -> tuple[tuple[PackageRef, ...], tuple[str, ...]] | None:
+    """Resolve what a repository declares, from whichever manifest it has.
+
+    npm is tried before Python only because a project that has both is more usually a
+    JavaScript one with tooling alongside. Returns None if neither is present.
+    """
+    try:
+        manifest = await sources.github.fetch_manifest(owner, repo, ref)
+    except FileNotFound:
+        pass
+    else:
+        declared: list[Requirement] = list(parse_package_json(manifest))
+        return await sources.npm.resolve(declared)
+
+    try:
+        content = await sources.github.fetch_requirements(owner, repo, ref)
+    except FileNotFound:
+        return None
+
+    understood, ignored = parse_requirements_txt(content)
+    resolved, unresolvable = await sources.pypi.resolve(list(understood))
+    return resolved, unresolvable + ignored
 
 
 @app.get("/health")
@@ -272,38 +313,39 @@ async def report_for_github_repository(
     A lockfile is used where the repository commits one, since it records exactly what
     is installed. Where it does not — libraries usually gitignore it, and yarn and pnpm
     projects never produce one — the manifest is read instead and its declared ranges
-    are resolved. Only those files are fetched; nothing is cloned or executed.
+    are resolved. Both npm and Python projects are recognised.
+
+    Only dependency files are fetched; nothing is cloned or executed.
     """
+    target = f"{owner}/{repo}@{ref}"
+
     try:
         lockfile = await sources.github.fetch_lockfile(owner, repo, ref)
     except LockfileNotFound:
         pass
     else:
         return await _report_from_lockfile(
-            target=f"{owner}/{repo}@{ref}",
-            lockfile=lockfile,
-            sources=sources,
-            limit=limit,
+            target=target, lockfile=lockfile, sources=sources, limit=limit
         )
 
-    try:
-        manifest = await sources.github.fetch_manifest(owner, repo, ref)
-    except FileNotFound as missing:
+    found = await _declared_by_repository(owner, repo, ref, sources)
+    if found is None:
         raise HTTPException(
             status_code=404,
             detail=(
-                f"{owner}/{repo} has neither a package-lock.json nor a package.json "
-                f"at {ref}."
+                f"{owner}/{repo} has no dependency file this understands at {ref}: "
+                "looked for package-lock.json, package.json and requirements.txt."
             ),
-        ) from missing
+        )
 
-    report = await _report_from_manifest(manifest, sources, limit, depth)
-    return Report(
-        target=f"{owner}/{repo}@{ref}",
-        dependencies=report.dependencies,
-        findings=report.findings,
-        truncated=report.truncated,
-        unresolved=report.unresolved,
+    declared, unresolvable = found
+    return await _report_from_declared(
+        target=target,
+        declared=declared,
+        unresolvable=unresolvable,
+        sources=sources,
+        limit=limit,
+        depth=depth,
     )
 
 

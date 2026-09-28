@@ -2,7 +2,7 @@
 
 from packageurl import PackageURL
 
-from sbom_security.models import PackageRef
+from sbom_security.models import PYPI, PackageRef
 from sbom_security.purl import to_dependencies, to_purl
 
 
@@ -26,6 +26,17 @@ def test_dependency_keeps_the_original_name_alongside_the_purl():
     assert dependency.name == "@babel/core"
     assert dependency.version == "7.20.12"
     assert dependency.purl.startswith("pkg:npm/")
+
+
+def test_builds_a_purl_for_another_ecosystem():
+    assert to_purl(PackageRef("django", "4.2.0", PYPI)) == "pkg:pypi/django@4.2.0"
+
+
+def test_an_ecosystem_without_scopes_has_no_namespace():
+    purl = PackageURL.from_string(to_purl(PackageRef("django", "4.2.0", PYPI)))
+
+    assert purl.namespace is None
+    assert purl.type == "pypi"
 
 
 def test_converts_every_reference():

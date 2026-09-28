@@ -22,6 +22,7 @@ alone does not convey.
 | Component | Where | License | Used for |
 | --------- | ----- | ------- | -------- |
 | packageurl-python | https://github.com/package-url/packageurl-python | MIT | Building and parsing Package URLs, rather than reimplementing the specification |
+| packaging | https://github.com/pypa/packaging | Apache-2.0 / BSD-2-Clause | Parsing and comparing Python requirements and versions. PEP 440 versions do not compare like semver, and the PyPA implementation is the reference for how pip reads the same files. |
 | node-semver | https://github.com/podhmo/python-node-semver | MIT | Resolving npm version ranges to published versions. A manifest declares ranges (`^4.18.0`), and npm's range syntax is large enough that implementing it would introduce a class of silently wrong matches. |
 | arq | https://github.com/python-arq/arq | MIT | The work queue. Chosen over Celery because it is built for asyncio, which the rest of this project already uses, and because the work here is uniform and parallel rather than orchestrated. It is confined to `queue.py` and `worker.py`; the work itself has no knowledge of it. |
 

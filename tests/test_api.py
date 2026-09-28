@@ -17,6 +17,7 @@ from sbom_security.api import (
     get_github_source,
     get_npm_registry,
     get_osv_client,
+    get_pypi_index,
     get_queue,
     get_registry_client,
 )
@@ -25,6 +26,7 @@ from sbom_security.github import GitHubSource
 from sbom_security.jobs import COMPLETE, NOT_FOUND, QUEUED, JobState, job_id
 from sbom_security.npm import NpmRegistry
 from sbom_security.osv import OsvClient
+from sbom_security.pypi import PyPiIndex
 from sbom_security.registry import DepsDevClient
 
 LOCKFILE = json.loads((Path(__file__).parent / "data" / "package-lock.json").read_text())
@@ -83,15 +85,26 @@ MANIFEST = {"name": "manifest-project", "dependencies": {"express": "^4.18.0"}}
 PUBLISHED_VERSIONS = {"express": ["4.17.0", "4.18.0"]}
 
 
+REQUIREMENTS_TXT = "django==4.2.0\n-r base.txt\n"
+
+RELEASED_VERSIONS = {"django": ["4.1.0", "4.2.0"]}
+
+
 def serve_repository_files(request: httpx.Request) -> httpx.Response:
     """Serve repository files.
 
-    `OWASP/NodeGoat` has a lockfile. `expressjs/express` has only a manifest, which is
-    the case that exercises range resolution. `empty/repo` has neither.
+    `OWASP/NodeGoat` has a lockfile. `expressjs/express` has only a manifest, which
+    exercises npm range resolution. `pallets/flask` has only a requirements file,
+    which exercises the Python path. `empty/repo` has none of them.
     """
     filename = request.url.path.rsplit("/", 1)[-1]
 
     if "empty" in request.url.path:
+        return httpx.Response(404, text="404: Not Found")
+
+    if "pallets" in request.url.path:
+        if filename == "requirements.txt":
+            return httpx.Response(200, text=REQUIREMENTS_TXT)
         return httpx.Response(404, text="404: Not Found")
 
     if "expressjs" in request.url.path:
@@ -102,6 +115,16 @@ def serve_repository_files(request: httpx.Request) -> httpx.Response:
     if filename == "package-lock.json":
         return httpx.Response(200, json=LOCKFILE)
     return httpx.Response(404, text="404: Not Found")
+
+
+def serve_released_versions(request: httpx.Request) -> httpx.Response:
+    """Serve the Python package index's release list."""
+    name = request.url.path.split("/")[2]
+    if name not in RELEASED_VERSIONS:
+        return httpx.Response(404, json={})
+    return httpx.Response(
+        200, json={"releases": {version: [] for version in RELEASED_VERSIONS[name]}}
+    )
 
 
 def serve_published_versions(request: httpx.Request) -> httpx.Response:
@@ -161,6 +184,9 @@ def fixture_client(tmp_path: Path, queue: FakeQueue):
     )
     app.dependency_overrides[get_npm_registry] = lambda: NpmRegistry(
         transport=httpx.MockTransport(serve_published_versions)
+    )
+    app.dependency_overrides[get_pypi_index] = lambda: PyPiIndex(
+        transport=httpx.MockTransport(serve_released_versions)
     )
     app.dependency_overrides[get_cache] = lambda: SbomCache(tmp_path)
     app.dependency_overrides[get_queue] = lambda: queue
@@ -302,12 +328,33 @@ def test_a_manifest_report_still_finds_vulnerabilities(client):
     assert payload["findings"][0]["vulnerabilities"][0]["aliases"] == ["CVE-2024-0001"]
 
 
-def test_a_repository_with_neither_file_is_reported_as_not_found(client):
+def test_a_python_repository_is_read_from_its_requirements(client):
+    response = client.get(
+        "/reports/github", params={"owner": "pallets", "repo": "flask"}
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["dependencies"][0]["name"] == "django"
+    assert payload["dependencies"][0]["purl"] == "pkg:pypi/django@4.2.0"
+
+
+def test_a_python_report_names_what_it_could_not_follow(client):
+    # The requirements file points at another with -r, which is not followed.
+    payload = client.get(
+        "/reports/github", params={"owner": "pallets", "repo": "flask"}
+    ).json()
+
+    assert "-r base.txt" in payload["unresolved"]
+
+
+def test_a_repository_with_no_known_dependency_file_is_not_found(client):
     response = client.get("/reports/github", params={"owner": "empty", "repo": "repo"})
 
     assert response.status_code == 404
     detail = response.json()["detail"]
-    assert "package-lock.json" in detail and "package.json" in detail
+    assert "package-lock.json" in detail
+    assert "requirements.txt" in detail
 
 
 def test_a_report_cut_short_by_the_limit_says_so(client):

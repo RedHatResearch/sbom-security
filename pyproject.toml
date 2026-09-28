@@ -16,6 +16,7 @@ dependencies = [
     "uvicorn",
     "arq",
     "node-semver",
+    "packaging",
 ]
 
 [project.optional-dependencies]

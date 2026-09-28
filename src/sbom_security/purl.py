@@ -9,21 +9,27 @@ from collections.abc import Iterable
 
 from packageurl import PackageURL
 
-from sbom_security.models import Dependency, PackageRef
+from sbom_security.models import NPM, PYPI, Dependency, PackageRef
 
-NPM = "npm"
+__all__ = ["NPM", "PYPI", "to_purl", "to_dependency", "to_dependencies"]
 
 
 def to_purl(ref: PackageRef) -> str:
     """Return the Package URL for a package reference.
 
     An npm scope becomes the Package URL namespace, so ``@babel/core`` is carried as
-    the namespace ``@babel`` and the name ``core``.
+    the namespace ``@babel`` and the name ``core``. Ecosystems without scopes have no
+    namespace at all.
     """
-    namespace, _, name = ref.name.rpartition("/")
+    namespace: str | None = None
+    name = ref.name
+
+    if ref.ecosystem == NPM and "/" in name:
+        namespace, _, name = name.rpartition("/")
+
     return PackageURL(
-        type=NPM,
-        namespace=namespace or None,
+        type=ref.ecosystem,
+        namespace=namespace,
         name=name,
         version=ref.version,
     ).to_string()

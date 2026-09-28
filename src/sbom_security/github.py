@@ -12,6 +12,7 @@ import httpx
 RAW_HOST = "https://raw.githubusercontent.com"
 LOCKFILE = "package-lock.json"
 MANIFEST = "package.json"
+REQUIREMENTS = "requirements.txt"
 
 # "HEAD" resolves to whatever the repository's default branch is called, which avoids
 # having to guess between main, master and anything else.
@@ -58,9 +59,22 @@ class GitHubSource:
         """Return the parsed package.json for a public repository."""
         return await self._fetch(owner, repo, ref, MANIFEST)
 
+    async def fetch_requirements(
+        self, owner: str, repo: str, ref: str = DEFAULT_REF
+    ) -> str:
+        """Return the requirements.txt of a public repository, as text."""
+        response = await self._get(owner, repo, ref, REQUIREMENTS)
+        return response.text
+
     async def _fetch(
         self, owner: str, repo: str, ref: str, filename: str
     ) -> dict[str, Any]:
+        response = await self._get(owner, repo, ref, filename)
+        return response.json()
+
+    async def _get(
+        self, owner: str, repo: str, ref: str, filename: str
+    ) -> httpx.Response:
         async with httpx.AsyncClient(
             timeout=self.timeout, transport=self.transport, follow_redirects=True
         ) as client:
@@ -69,4 +83,4 @@ class GitHubSource:
         if response.status_code == 404:
             raise FileNotFound(f"{owner}/{repo} has no {filename} at {ref}")
         response.raise_for_status()
-        return response.json()
+        return response

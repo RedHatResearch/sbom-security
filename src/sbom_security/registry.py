@@ -17,7 +17,7 @@ from urllib.parse import quote
 import httpx
 
 from sbom_security.models import PackageRef, Sbom
-from sbom_security.purl import NPM, to_purl
+from sbom_security.purl import to_purl
 
 DEPS_DEV_API = "https://api.deps.dev"
 
@@ -45,12 +45,13 @@ class DepsDevClient:
         """Return the deps.dev URL for a version's dependency graph.
 
         The name is escaped whole, so that a scoped package such as ``@babel/core``
-        stays a single path segment instead of becoming two.
+        stays a single path segment instead of becoming two. deps.dev names its
+        ecosystems the same way Package URLs do, so the reference carries it directly.
         """
         name = quote(ref.name, safe="")
         version = quote(ref.version, safe="")
         return (
-            f"{self.base_url}/v3alpha/systems/{NPM}/packages/{name}"
+            f"{self.base_url}/v3alpha/systems/{ref.ecosystem}/packages/{name}"
             f"/versions/{version}:dependencies"
         )
 
@@ -67,11 +68,11 @@ class DepsDevClient:
 
         return Sbom(
             purl=to_purl(ref),
-            dependencies=_direct_nodes(response.json()),
+            dependencies=_direct_nodes(response.json(), ref.ecosystem),
         )
 
 
-def _direct_nodes(graph: dict[str, Any]) -> tuple[PackageRef, ...]:
+def _direct_nodes(graph: dict[str, Any], ecosystem: str) -> tuple[PackageRef, ...]:
     """Pick the directly depended-on versions out of a resolved dependency graph.
 
     The graph also contains the package itself, marked SELF, and everything reachable
@@ -85,5 +86,7 @@ def _direct_nodes(graph: dict[str, Any]) -> tuple[PackageRef, ...]:
         key = node.get("versionKey") or {}
         name, version = key.get("name"), key.get("version")
         if name and version:
-            direct.append(PackageRef(name=name, version=version))
+            direct.append(
+                PackageRef(name=name, version=version, ecosystem=ecosystem)
+            )
     return tuple(direct)
