@@ -12,11 +12,24 @@ from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
 from arq.jobs import Job, JobStatus
 
-from sbom_security.jobs import COMPLETE, FAILED, IN_PROGRESS, NOT_FOUND, QUEUED, JobState, job_id
+from sbom_security.jobs import (
+    COMPLETE,
+    FAILED,
+    IN_PROGRESS,
+    NOT_FOUND,
+    QUEUED,
+    JobState,
+    QueueOverview,
+    job_id,
+)
 
 REDIS_DSN = os.environ.get("REDIS_DSN", "redis://localhost:6379")
 
 TASK = "report_on_package"
+
+# arq marks a job as taken by writing this key. Mirrored here rather than imported so
+# that the dependency stays to arq's public interface.
+IN_PROGRESS_PREFIX = "arq:in-progress:"
 
 _ARQ_STATUS = {
     JobStatus.deferred: QUEUED,
@@ -42,7 +55,11 @@ class ArqQueue:
     redis: ArqRedis
 
     async def submit(
-        self, name: str, version: str, depth: int, callback_url: str | None = None
+        self,
+        name: str,
+        version: str,
+        depth: int | None,
+        callback_url: str | None = None,
     ) -> str:
         """Queue a report, or return the identifier of one already queued.
 
@@ -54,6 +71,25 @@ class ArqQueue:
             TASK, name, version, depth, callback_url, _job_id=identifier
         )
         return identifier
+
+    async def overview(self) -> QueueOverview:
+        """Report how much work is waiting and what is being worked on.
+
+        Running jobs are found by the key arq writes when a worker takes one, since
+        nothing else distinguishes a job in progress from one still waiting.
+        """
+        waiting = await self.redis.queued_jobs()
+
+        running: list[str] = []
+        async for key in self.redis.scan_iter(match=f"{IN_PROGRESS_PREFIX}*"):
+            name = key.decode() if isinstance(key, bytes) else str(key)
+            running.append(name.removeprefix(IN_PROGRESS_PREFIX))
+
+        # A job a worker has taken is no longer waiting, whatever the queue still says.
+        taken = set(running)
+        queued = sum(1 for job in waiting if job.job_id not in taken)
+
+        return QueueOverview(queued=queued, running=tuple(sorted(running)))
 
     async def state(self, identifier: str) -> JobState:
         """Report where a job has got to, with its result once there is one."""

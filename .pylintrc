@@ -18,3 +18,9 @@ max-positional-arguments = 8
 # A report is a document rather than an object with behaviour, so its field count
 # reflects what the format has to express, not how much the class is doing.
 max-attributes = 12
+
+[SIMILARITIES]
+# Two callers of the same helper are supposed to look alike, and with named arguments
+# that alone exceeds the default of four lines. Raised so the check still catches
+# genuinely repeated logic without flagging shared code being shared.
+min-similarity-lines = 8

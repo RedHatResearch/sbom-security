@@ -23,7 +23,14 @@ from sbom_security.api import (
 )
 from sbom_security.cache import SbomCache
 from sbom_security.github import GitHubSource
-from sbom_security.jobs import COMPLETE, NOT_FOUND, QUEUED, JobState, job_id
+from sbom_security.jobs import (
+    COMPLETE,
+    NOT_FOUND,
+    QUEUED,
+    JobState,
+    QueueOverview,
+    job_id,
+)
 from sbom_security.npm import NpmRegistry
 from sbom_security.osv import OsvClient
 from sbom_security.pypi import PyPiIndex
@@ -151,11 +158,16 @@ class FakeQueue:
     """Stands in for the work queue, recording what was submitted."""
 
     def __init__(self):
-        self.submitted: list[tuple[str, str, int, str | None]] = []
+        self.submitted: list[tuple[str, str, int | None, str | None]] = []
         self.states: dict[str, JobState] = {}
+        self.overview_result = QueueOverview(queued=0, running=())
 
     async def submit(
-        self, name: str, version: str, depth: int, callback_url: str | None = None
+        self,
+        name: str,
+        version: str,
+        depth: int | None,
+        callback_url: str | None = None,
     ) -> str:
         identifier = job_id(name, version, depth)
         self.submitted.append((name, version, depth, callback_url))
@@ -164,6 +176,9 @@ class FakeQueue:
 
     async def state(self, identifier: str) -> JobState:
         return self.states.get(identifier, JobState(id=identifier, status=NOT_FOUND))
+
+    async def overview(self) -> QueueOverview:
+        return self.overview_result
 
 
 @pytest.fixture(name="queue")
@@ -424,7 +439,21 @@ def test_submitting_a_package_returns_immediately(client, queue):
 
     assert response.status_code == 202
     assert response.json()["status"] == "queued"
-    assert queue.submitted == [("express", "4.18.0", 3, None)]
+    # No depth given means the whole tree.
+    assert queue.submitted == [("express", "4.18.0", None, None)]
+
+
+def test_the_queue_reports_what_is_waiting_and_running(client, queue):
+    queue.overview_result = QueueOverview(queued=3, running=("job-a", "job-b"))
+
+    response = client.get("/queue")
+
+    assert response.status_code == 200
+    assert response.json() == {"queued": 3, "running": ["job-a", "job-b"]}
+
+
+def test_an_idle_queue_reports_nothing_waiting(client):
+    assert client.get("/queue").json() == {"queued": 0, "running": []}
 
 
 def test_a_submission_says_where_to_collect_the_result(client):

@@ -18,7 +18,7 @@ async def report_on_package(
     _ctx: dict[str, Any],
     name: str,
     version: str,
-    depth: int,
+    depth: int | None = None,
     callback_url: str | None = None,
 ) -> dict[str, Any]:
     """Adapt the queue's calling convention to the plain function that does the work.

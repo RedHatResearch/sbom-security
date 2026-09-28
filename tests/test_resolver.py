@@ -178,6 +178,41 @@ async def test_an_unknown_package_is_recorded_and_the_walk_continues(tmp_path: P
     assert resolution.unresolved == ("pkg:npm/missing@9.9.9",)
 
 
+async def test_without_a_depth_the_whole_tree_is_walked(tmp_path: Path):
+    # express -> accepts -> mime-types -> mime, four levels deep.
+    resolution = await resolve_tree(EXPRESS, SbomCache(tmp_path), CHAIN.client())
+
+    assert names(resolution) == {"express", "accepts", "mime-types", "mime"}
+    assert resolution.truncated is False
+
+
+async def test_a_ceiling_stops_a_walk_and_says_so(tmp_path: Path):
+    # Depth is unpredictable from outside, so the bound is on how much work one
+    # request may cause.
+    resolution = await resolve_tree(
+        EXPRESS, SbomCache(tmp_path), CHAIN.client(), ceiling=2
+    )
+
+    assert len(resolution.packages) == 2
+    assert resolution.truncated is True
+
+
+async def test_the_ceiling_is_not_overshot_by_a_whole_level(tmp_path: Path):
+    registry = FakeRegistry(
+        {
+            "root@1.0.0": graph(
+                "root", "1.0.0", [(f"child{n}", "1.0.0") for n in range(10)]
+            )
+        }
+    )
+
+    resolution = await resolve_tree(
+        PackageRef("root", "1.0.0"), SbomCache(tmp_path), registry.client(), ceiling=4
+    )
+
+    assert len(resolution.packages) == 4
+
+
 async def test_a_declared_set_is_walked_without_a_root(tmp_path: Path):
     # A project with no lockfile names its first level directly, so there is no
     # single package to start from.

@@ -20,14 +20,13 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, s
 from sbom_security import __version__
 from sbom_security.cache import SbomCache
 from sbom_security.github import DEFAULT_REF, FileNotFound, GitHubSource, LockfileNotFound
-from sbom_security.jobs import NOT_FOUND, JobState
+from sbom_security.jobs import NOT_FOUND, JobState, QueueOverview
 from sbom_security.lockfile import parse_package_lock_data
 from sbom_security.manifest import parse_package_json
 from sbom_security.models import (
     LOCKFILE,
     MANIFEST,
     NPM,
-    PACKAGE,
     PYPI,
     PackageRef,
     Report,
@@ -65,13 +64,14 @@ Limit = Annotated[
 ]
 
 Depth = Annotated[
-    int,
+    int | None,
     Query(
         ge=1,
         le=MAX_DEPTH,
         description=(
-            "How many levels of dependencies to walk. One gives direct dependencies. "
-            "A walk stopped by this limit is marked truncated."
+            "How many levels of dependencies to walk. Omit to walk the whole tree; "
+            "one gives direct dependencies only. A walk stopped short is marked "
+            "truncated."
         ),
     ),
 ]
@@ -255,6 +255,18 @@ async def _declared_by_repository(
 def health() -> dict[str, str]:
     """Report that the service is running."""
     return {"status": "ok"}
+
+
+@app.get("/queue")
+async def queue_overview(
+    queue: Annotated[ArqQueue, Depends(get_queue)],
+) -> QueueOverview:
+    """Report how much work is waiting and what the workers are doing.
+
+    Submitted work otherwise disappears into the queue until it is collected, and a
+    decision to run more workers has nothing to go on.
+    """
+    return await queue.overview()
 
 
 @app.post("/reports/npm-lockfile")

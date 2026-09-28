@@ -17,7 +17,11 @@ from sbom_security.models import PackageRef, Resolution, Sbom
 from sbom_security.purl import to_purl
 from sbom_security.registry import DepsDevClient, PackageNotFound
 
-DEFAULT_DEPTH = 3
+# A walk runs to the bottom of the tree unless a depth is asked for. It is bounded by
+# a package count instead, so that it always terminates: depth cannot be predicted
+# from the outside, but a ceiling on how much work one request may cause can be.
+DEFAULT_DEPTH: int | None = None
+MAX_PACKAGES = 5000
 
 # Bounded so that a wide dependency tree does not open hundreds of simultaneous
 # connections against a free public service.
@@ -45,12 +49,14 @@ async def resolve_tree(
     root: PackageRef,
     cache: SbomCache,
     client: DepsDevClient,
-    depth: int = DEFAULT_DEPTH,
+    depth: int | None = DEFAULT_DEPTH,
+    ceiling: int = MAX_PACKAGES,
 ) -> Resolution:
-    """Walk one package's dependencies breadth-first, up to ``depth`` levels.
+    """Walk one package's dependencies breadth-first, to the bottom by default.
 
-    A depth of one gives the root and its direct dependencies. Packages already seen
-    are never expanded twice, which also means a dependency cycle terminates.
+    Pass ``depth`` for a shallower look: one gives the root and its direct
+    dependencies. Packages already seen are never expanded twice, which also means a
+    dependency cycle terminates.
     """
     seen: dict[str, PackageRef] = {to_purl(root): root}
     unresolved: list[str] = []
@@ -58,8 +64,10 @@ async def resolve_tree(
     # A root the registry does not know is an error worth reporting: the caller asked
     # about a package that does not exist. Failures further down are tolerated
     # instead, since one unknown package should not abandon a whole tree.
-    frontier = _newly_seen([await sbom_for(root, cache, client)], seen)
-    truncated = await _walk(frontier, seen, unresolved, cache, client, depth - 1)
+    frontier = _newly_seen([await sbom_for(root, cache, client)], seen, ceiling)
+    truncated = await _walk(
+        frontier, seen, unresolved, cache, client, _levels_after_first(depth), ceiling
+    )
 
     return Resolution(
         root=root,
@@ -74,7 +82,8 @@ async def resolve_declared(
     declared: Sequence[PackageRef],
     cache: SbomCache,
     client: DepsDevClient,
-    depth: int = DEFAULT_DEPTH,
+    depth: int | None = DEFAULT_DEPTH,
+    ceiling: int = MAX_PACKAGES,
 ) -> Resolution:
     """Walk outwards from the dependencies a project declares.
 
@@ -86,7 +95,9 @@ async def resolve_declared(
     unresolved: list[str] = []
 
     frontier = list(seen.values())
-    truncated = await _walk(frontier, seen, unresolved, cache, client, depth - 1)
+    truncated = await _walk(
+        frontier, seen, unresolved, cache, client, _levels_after_first(depth), ceiling
+    )
 
     return Resolution(
         root=None,
@@ -97,27 +108,39 @@ async def resolve_declared(
     )
 
 
+def _levels_after_first(depth: int | None) -> int | None:
+    """Depth counts the first level, which the callers have already taken."""
+    return None if depth is None else max(depth - 1, 0)
+
+
 async def _walk(
     frontier: list[PackageRef],
     seen: dict[str, PackageRef],
     unresolved: list[str],
     cache: SbomCache,
     client: DepsDevClient,
-    levels: int,
+    levels: int | None,
+    ceiling: int,
 ) -> bool:
-    """Expand the frontier for a number of levels. Returns whether it was cut short."""
-    limit = asyncio.Semaphore(MAX_CONCURRENT_LOOKUPS)
+    """Expand the frontier until it runs out, or a limit stops it.
 
-    for _ in range(max(levels, 0)):
-        if not frontier:
-            break
+    Returns whether anything was left unexpanded, which is the only honest way to say
+    that parts of the tree were never looked at.
+    """
+    limit = asyncio.Semaphore(MAX_CONCURRENT_LOOKUPS)
+    remaining = levels
+
+    while frontier and len(seen) < ceiling:
+        if remaining is not None:
+            if remaining <= 0:
+                break
+            remaining -= 1
+
         sboms = await asyncio.gather(
             *(_expand(ref, cache, client, limit, unresolved) for ref in frontier)
         )
-        frontier = _newly_seen(sboms, seen)
+        frontier = _newly_seen(sboms, seen, ceiling)
 
-    # Anything still waiting to be expanded means the limit stopped the walk short,
-    # so parts of the tree were never examined.
     return bool(frontier)
 
 
@@ -143,12 +166,18 @@ async def _expand(
 
 
 def _newly_seen(
-    sboms: list[Sbom], seen: dict[str, PackageRef]
+    sboms: list[Sbom], seen: dict[str, PackageRef], ceiling: int
 ) -> list[PackageRef]:
-    """Collect the dependencies not encountered before, recording them as seen."""
+    """Collect the dependencies not encountered before, recording them as seen.
+
+    Stops at the ceiling rather than taking a whole level and overshooting it, since
+    one level of a wide tree can be thousands of packages on its own.
+    """
     discovered: list[PackageRef] = []
     for sbom in sboms:
         for dependency in sbom.dependencies:
+            if len(seen) >= ceiling:
+                return discovered
             purl = to_purl(dependency)
             if purl not in seen:
                 seen[purl] = dependency

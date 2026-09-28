@@ -43,6 +43,18 @@ class JobState:
 
 
 @dataclass(frozen=True)
+class QueueOverview:
+    """What the workers are doing, and how much is waiting for them.
+
+    Submitted work otherwise disappears until it is collected. This is also what a
+    decision to run more workers would be based on.
+    """
+
+    queued: int
+    running: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Sources:
     """Where the work reads from, and how a finished report is delivered.
 
@@ -64,20 +76,21 @@ class Sources:
         )
 
 
-def job_id(name: str, version: str, depth: int) -> str:
+def job_id(name: str, version: str, depth: int | None) -> str:
     """Return a stable identifier for one request.
 
     Two callers asking the same question get the same identifier, so the second is
     recognised as already queued rather than run again. The depth is part of it
     because a shallower walk answers a different question, even about the same package.
     """
-    return f"{to_purl(PackageRef(name=name, version=version))}@depth={depth}"
+    purl = to_purl(PackageRef(name=name, version=version))
+    return f"{purl}@depth={'all' if depth is None else depth}"
 
 
 async def report_on_package(
     name: str,
     version: str,
-    depth: int,
+    depth: int | None = None,
     callback_url: str | None = None,
     sources: Sources | None = None,
 ) -> dict[str, Any]:

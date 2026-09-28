@@ -33,6 +33,7 @@ Interactive API documentation: **http://127.0.0.1:8010/docs**
 | `GET /reports/npm-package?name=&version=` | Scan a package and its dependencies |
 | `POST /jobs/npm-package?name=&version=` | Hand a scan to a worker, collect it later |
 | `GET /jobs/{id}` | Status and result of submitted work |
+| `GET /queue` | How much work is waiting, and what is running |
 | `GET /health` | Liveness check |
 
 ## Usage
@@ -60,11 +61,18 @@ curl -X POST http://127.0.0.1:8010/reports/npm-lockfile \
   --data-binary @package-lock.json
 ```
 
-**A package, with no lockfile anywhere.** `depth` controls how many levels are walked.
+**A package, with no lockfile anywhere.** The whole dependency tree is walked unless
+`depth` asks for less.
 
 ```bash
-curl 'http://127.0.0.1:8010/reports/npm-package?name=express&version=4.18.0&depth=3'
+curl 'http://127.0.0.1:8010/reports/npm-package?name=express&version=4.18.0'
+curl 'http://127.0.0.1:8010/reports/npm-package?name=express&version=4.18.0&depth=1'
 ```
+
+A walk runs to the bottom of the tree, bounded by a ceiling on how many packages one
+request may examine. Depth cannot be predicted from outside, but the amount of work a
+single request causes can be — and a walk stopped by that ceiling is marked
+`"truncated": true`.
 
 ### The report
 

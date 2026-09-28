@@ -108,6 +108,12 @@ def test_the_identifier_is_built_from_the_package_url():
     assert job_id("express", "4.18.0", 3).startswith("pkg:npm/express@4.18.0")
 
 
+def test_a_whole_tree_walk_has_its_own_identifier():
+    # Walking everything is a different question from walking three levels.
+    assert job_id("express", "4.18.0", None).endswith("@depth=all")
+    assert job_id("express", "4.18.0", None) != job_id("express", "4.18.0", 3)
+
+
 async def test_produces_a_report(tmp_path: Path):
     report = await report_on_package(
         "express", "4.18.0", depth=3, sources=sources_for(tmp_path)
