@@ -122,7 +122,8 @@ class Vulnerability:
 
     ``id`` is whatever the source calls the record, often a GitHub advisory id.
     ``aliases`` carries the other identifiers for the same issue, which is where the
-    CVE number usually appears.
+    CVE number usually appears. ``url`` is a page a person can open to read the full
+    record and its references.
     """
 
     id: str
@@ -130,6 +131,7 @@ class Vulnerability:
     summary: str | None = None
     severity: str | None = None
     fixed_version: str | None = None
+    url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -141,7 +143,7 @@ class Finding:
 
 
 # Raised when the shape of a report changes in a way a reader would notice.
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 
 
 @dataclass(frozen=True)

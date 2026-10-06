@@ -96,6 +96,17 @@ async def test_reports_the_cve_alias_summary_and_fix():
     assert vulnerability.fixed_version == "4.18.1"
 
 
+async def test_links_each_vulnerability_to_its_page():
+    fake = FakeOsv(
+        batch_results=[{"vulns": [{"id": "GHSA-example-1"}]}],
+        records={"GHSA-example-1": EXPRESS_ADVISORY},
+    )
+
+    found = await fake.client().find_vulnerabilities([EXPRESS])
+
+    assert found[EXPRESS.purl][0].url == "https://osv.dev/vulnerability/GHSA-example-1"
+
+
 async def test_prefers_a_plain_severity_over_a_scoring_vector():
     fake = FakeOsv(
         batch_results=[{"vulns": [{"id": "GHSA-example-1"}]}],

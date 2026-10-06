@@ -91,7 +91,7 @@ single request causes can be — and a walk stopped by that ceiling is marked
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "tool": "sbom-security",
   "generated_at": "2026-09-28T09:15:00+00:00",
   "target": {
@@ -112,7 +112,8 @@ single request causes can be — and a walk stopped by that ceiling is marked
           "aliases": ["CVE-2024-29041"],
           "summary": "Express.js Open Redirect in malformed URLs",
           "severity": "MODERATE",
-          "fixed_version": "4.19.2"
+          "fixed_version": "4.19.2",
+          "url": "https://osv.dev/vulnerability/GHSA-rv95-896h-c2vc"
         }
       ]
     }

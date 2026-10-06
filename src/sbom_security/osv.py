@@ -23,6 +23,10 @@ from sbom_security.models import Dependency, Vulnerability
 OSV_API = "https://api.osv.dev"
 MAX_QUERIES_PER_BATCH = 1000
 
+# The page a person reads, as opposed to the API a program calls. It exists for every
+# identifier OSV returns, whichever database the record came from.
+OSV_PAGE = "https://osv.dev/vulnerability"
+
 # Enough concurrency to make the fetches fast, bounded so that a large project does
 # not open hundreds of simultaneous connections against a free public service.
 MAX_CONCURRENT_FETCHES = 20
@@ -121,6 +125,7 @@ def _to_vulnerability(raw: dict[str, Any], dependency: Dependency) -> Vulnerabil
         summary=raw.get("summary"),
         severity=_severity(raw),
         fixed_version=_fixed_version(raw, dependency.name),
+        url=f"{OSV_PAGE}/{raw['id']}",
     )
 
 

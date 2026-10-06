@@ -293,7 +293,7 @@ def test_a_python_report_names_its_ecosystem(client):
 def test_a_report_carries_a_schema_version_and_a_timestamp(client):
     payload = client.post("/reports/npm-lockfile", json=LOCKFILE).json()
 
-    assert payload["schema_version"] == "1.0"
+    assert payload["schema_version"] == "1.1"
     assert payload["tool"] == "sbom-security"
     assert payload["generated_at"]
 
