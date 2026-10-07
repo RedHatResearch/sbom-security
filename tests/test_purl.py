@@ -3,7 +3,7 @@
 from packageurl import PackageURL
 
 from sbom_security.models import PYPI, PackageRef
-from sbom_security.purl import to_dependencies, to_purl
+from sbom_security.purl import package_key, to_dependencies, to_purl
 
 
 def test_builds_a_purl_for_a_plain_package():
@@ -48,3 +48,23 @@ def test_converts_every_reference():
         "pkg:npm/express@4.18.0",
         "pkg:npm/accepts@1.3.8",
     ]
+
+
+def test_a_package_key_ignores_the_version():
+    assert package_key("pkg:npm/express@4.18.0") == package_key("pkg:npm/express")
+
+
+def test_a_package_key_reads_a_scope_however_it_is_spelled():
+    assert package_key("pkg:npm/%40angular/core@17.0.0") == ("npm", "@angular/core")
+    assert package_key("pkg:npm/@angular/core") == ("npm", "@angular/core")
+
+
+def test_a_package_key_compares_python_names_as_pip_does():
+    assert package_key("pkg:pypi/Zope_Interface@6.0") == package_key(
+        "pkg:pypi/zope.interface"
+    )
+
+
+def test_a_package_key_keeps_ecosystems_apart():
+    # The same name in two ecosystems is two different pieces of software.
+    assert package_key("pkg:npm/django") != package_key("pkg:pypi/django")

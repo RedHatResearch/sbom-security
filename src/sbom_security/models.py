@@ -71,14 +71,65 @@ class Resolution:
     unresolved: tuple[str, ...] = ()
 
 
+# How much support a release line still receives. These correspond to the SPDX 3.0
+# supportLevel vocabulary: active and supported to "support", limited to
+# "limitedSupport", and eol to "endOfSupport".
+ACTIVE = "active"
+LIMITED = "limited"
+SUPPORTED = "supported"
+END_OF_LIFE = "eol"
+
+# How a support status was arrived at.
+PUBLISHED = "published"
+
+
+@dataclass(frozen=True)
+class Support:
+    """Whether a dependency's release line still receives fixes, and on whose word.
+
+    Projects publish support per release line rather than per version, so ``line``
+    names the one this version belongs to: ``4`` for Express, ``4.2`` for Django.
+    ``status`` is one of:
+
+    - ``active`` — the line is in its main period of support.
+    - ``limited`` — that period is over, but some fixes still come. ``phase`` says
+      which, in the project's own words, such as ``Security Support``.
+    - ``supported`` — fixes still come, but the project does not distinguish a main
+      period of support from a later, reduced one.
+    - ``eol`` — no fixes come at all.
+
+    ``active_support_until`` and ``support_until`` are the dates those periods end,
+    where they have been announced. The status is worked out from them when the
+    report is produced rather than when the data was retrieved, so data kept for a
+    while still gives the right answer.
+
+    ``basis`` says how the answer was arrived at; ``published`` means the project
+    publishes it. ``source`` is where to check it, and ``retrieved_at`` how old it is.
+    """
+
+    line: str
+    status: str
+    phase: str | None
+    active_support_until: str | None
+    support_until: str | None
+    basis: str
+    source: str
+    retrieved_at: str
+
+
 @dataclass(frozen=True)
 class Dependency:
-    """A resolved dependency at an exact version, normalized to a Package URL."""
+    """A resolved dependency at an exact version, normalized to a Package URL.
+
+    ``support`` is None when no published support policy is known for the package,
+    which is not the same as the package being unsupported.
+    """
 
     name: str
     version: str
     purl: str
     ecosystem: str = NPM
+    support: Support | None = None
 
 
 # Where the versions in a report came from. The distinction matters: these answer
@@ -143,18 +194,19 @@ class Finding:
 
 
 # Raised when the shape of a report changes in a way a reader would notice.
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 
 
 @dataclass(frozen=True)
 class Report:
     """The result of scanning one target.
 
-    ``dependencies`` holds everything that was resolved; ``findings`` holds only the
-    subset with known vulnerabilities. ``truncated`` says whether a limit stopped the
-    whole set from being examined, and ``unresolved`` names what could not be resolved
-    at all — a local path, a git dependency, a package no index knows. Both exist so
-    that a partial report is never mistaken for a clean one.
+    ``dependencies`` holds everything that was resolved, each with its support status
+    where its project publishes one; ``findings`` holds only the subset with known
+    vulnerabilities. ``truncated`` says whether a limit stopped the whole set from
+    being examined, and ``unresolved`` names what could not be resolved at all — a
+    local path, a git dependency, a package no index knows. Both exist so that a
+    partial report is never mistaken for a clean one.
 
     ``generated_at`` and ``tool`` record when the answer was produced and by what.
     Vulnerability data changes daily, so a report without a date is not reproducible

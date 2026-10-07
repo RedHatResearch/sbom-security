@@ -2,8 +2,8 @@
 
 [![tests](https://github.com/RedHatResearch/sbom-security/actions/workflows/tests.yml/badge.svg)](https://github.com/RedHatResearch/sbom-security/actions/workflows/tests.yml)
 
-Report the dependencies of a package or repository, together with the known
-vulnerabilities affecting them. Covers npm and Python.
+Report the dependencies of a package or repository, the known vulnerabilities
+affecting them, and whether each is still supported. Covers npm and Python.
 
 ## Quick start
 
@@ -91,7 +91,7 @@ single request causes can be — and a walk stopped by that ceiling is marked
 
 ```json
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "tool": "sbom-security",
   "generated_at": "2026-09-28T09:15:00+00:00",
   "target": {
@@ -101,11 +101,38 @@ single request causes can be — and a walk stopped by that ceiling is marked
   },
   "summary": { "dependencies": 1091, "vulnerable": 130, "vulnerabilities": 187 },
   "dependencies": [
-    { "name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0", "ecosystem": "npm" }
+    {
+      "name": "express",
+      "version": "4.18.0",
+      "purl": "pkg:npm/express@4.18.0",
+      "ecosystem": "npm",
+      "support": {
+        "line": "4", "status": "supported", "phase": "Security Support",
+        "active_support_until": null, "support_until": null, "basis": "published",
+        "source": "https://endoflife.date/express", "retrieved_at": "2026-09-28T09:14:58+00:00"
+      }
+    },
+    {
+      "name": "accepts",
+      "version": "1.3.8",
+      "purl": "pkg:npm/accepts@1.3.8",
+      "ecosystem": "npm",
+      "support": null
+    }
   ],
   "findings": [
     {
-      "dependency": { "name": "express", "version": "4.18.0", "purl": "pkg:npm/express@4.18.0", "ecosystem": "npm" },
+      "dependency": {
+        "name": "express",
+        "version": "4.18.0",
+        "purl": "pkg:npm/express@4.18.0",
+        "ecosystem": "npm",
+        "support": {
+          "line": "4", "status": "supported", "phase": "Security Support",
+          "active_support_until": null, "support_until": null, "basis": "published",
+          "source": "https://endoflife.date/express", "retrieved_at": "2026-09-28T09:14:58+00:00"
+        }
+      },
       "vulnerabilities": [
         {
           "id": "GHSA-rv95-896h-c2vc",
@@ -143,6 +170,33 @@ examines 500 dependencies by default; raise it with `&limit=3000`.
 
 `generated_at` matters because vulnerability data changes daily: an undated report
 cannot be compared against a later one.
+
+### Support status
+
+Each dependency says whether its release line still receives fixes, where its project
+publishes a support policy. The data comes from [endoflife.date](https://endoflife.date),
+which tracks several hundred products. For npm and PyPI that includes Express, React,
+Angular, Vue, Next.js, ESLint, Django and NumPy, among others. A dependency it does not
+cover has `"support": null`: no policy is known, which is not the same as no support.
+
+| `status` | Means |
+| -------- | ----- |
+| `active` | The line is in its main period of support |
+| `limited` | That period is over, but some fixes still come. `phase` says which, in the project's own words, such as `Security Support` |
+| `supported` | Fixes still come, but the project does not distinguish a main period from a later one |
+| `eol` | No fixes come at all |
+
+Support is published per release line rather than per version, so `line` names the one
+the version belongs to: `4` for Express, `4.2` for Django. Versions are compared with
+lines number by number, so `2.10.0` belongs to `2.10` and not to `2.1`.
+
+The status is worked out from the published dates when the report is produced, not when
+the data was fetched, so it changes on the day a period of support ends. `retrieved_at`
+says how old the data is: it is kept for 30 days, and when endoflife.date cannot be
+reached the last copy is used rather than none.
+
+These statuses correspond to the SPDX 3.0 `supportLevel` vocabulary: `active` and
+`supported` to `support`, `limited` to `limitedSupport`, and `eol` to `endOfSupport`.
 
 ## Submitting work instead of waiting
 
@@ -197,17 +251,18 @@ uvicorn sbom_security.api:app --reload
 pytest && pylint src/
 ```
 
-Requires Python 3.12 or newer, and outbound network access to reach OSV.dev and
-deps.dev.
+Requires Python 3.12 or newer, and outbound network access to reach OSV.dev, deps.dev
+and endoflife.date.
 
 ## How it works
 
 ```
-input  ->  resolve dependencies  ->  normalize to PURL  ->  match against OSV.dev  ->  report
+input  ->  resolve dependencies  ->  normalize to PURL  ->  OSV.dev + endoflife.date  ->  report
 ```
 
 Matching is done on Package URLs (`pkg:npm/express@4.18.0`) against the OSV schema's
-version ranges, which are ecosystem-native and therefore precise.
+version ranges, which are ecosystem-native and therefore precise. The same Package URL
+finds the dependency's support policy on endoflife.date, and both are asked at once.
 
 Dependency versions come from lockfiles where one exists, and otherwise from resolved
 graphs published by [deps.dev](https://deps.dev), so nothing has to be installed.
@@ -215,8 +270,9 @@ graphs published by [deps.dev](https://deps.dev), so nothing has to be installed
 Each version's direct dependencies are cached on disk, one file per version, under
 `.cache` (override with `SBOM_CACHE_DIR`). Those entries never expire: a published
 version cannot change what it depends on, so a package depended on by fifty others is
-resolved once rather than fifty times. Vulnerability data is deliberately not cached —
-a package that is clean today can be vulnerable tomorrow.
+resolved once rather than fifty times. Support data changes rarely but does change, so
+it is kept under `.cache/endoflife` for 30 days. Vulnerability data is deliberately not
+cached — a package that is clean today can be vulnerable tomorrow.
 
 ## Conventions
 

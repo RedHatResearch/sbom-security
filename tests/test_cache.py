@@ -1,8 +1,9 @@
-"""Tests for the on-disk SBOM cache."""
+"""Tests for the on-disk caches."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sbom_security.cache import SbomCache
+from sbom_security.cache import ExpiringCache, SbomCache, Stored
 from sbom_security.models import PackageRef, Sbom
 
 EXPRESS = Sbom(
@@ -71,3 +72,45 @@ def test_stores_an_sbom_with_no_dependencies(tmp_path: Path):
     cache.put(leaf)
 
     assert cache.get(leaf.purl) == leaf
+
+
+RETRIEVED = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+PACKAGE_URLS = Stored(
+    document={"result": [{"identifier": "pkg:npm/express"}]}, retrieved_at=RETRIEVED
+)
+
+
+def test_keeps_a_document_together_with_when_it_was_retrieved(tmp_path: Path):
+    cache = ExpiringCache(tmp_path)
+
+    cache.put("identifiers/purl", PACKAGE_URLS)
+
+    assert cache.get("identifiers/purl") == PACKAGE_URLS
+
+
+def test_reports_a_missing_document_as_absent(tmp_path: Path):
+    assert ExpiringCache(tmp_path).get("products/express") is None
+
+
+def test_a_document_is_fresh_only_within_its_lifetime(tmp_path: Path):
+    cache = ExpiringCache(tmp_path, lifetime=timedelta(days=30))
+
+    assert cache.is_fresh(PACKAGE_URLS, RETRIEVED + timedelta(days=29))
+    assert not cache.is_fresh(PACKAGE_URLS, RETRIEVED + timedelta(days=30))
+
+
+def test_an_expired_document_is_still_returned(tmp_path: Path):
+    # When the source cannot be reached, an old answer that states its age beats no
+    # answer at all, so expiry is the caller's decision rather than a deletion.
+    cache = ExpiringCache(tmp_path, lifetime=timedelta(days=1))
+    cache.put("identifiers/purl", PACKAGE_URLS)
+
+    assert cache.get("identifiers/purl") == PACKAGE_URLS
+
+
+def test_a_key_with_slashes_stays_one_flat_file(tmp_path: Path):
+    cache = ExpiringCache(tmp_path)
+
+    cache.put("products/express", PACKAGE_URLS)
+
+    assert [path.name for path in tmp_path.iterdir()] == ["products%2Fexpress.json"]

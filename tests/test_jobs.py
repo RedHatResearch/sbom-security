@@ -12,7 +12,8 @@ from typing import Any
 import httpx
 import pytest
 
-from sbom_security.cache import SbomCache
+from sbom_security.cache import ExpiringCache, SbomCache
+from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.jobs import Sources, job_id, report_on_package
 from sbom_security.osv import OsvClient
 from sbom_security.registry import DepsDevClient
@@ -70,6 +71,11 @@ def serve_advisories(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json=ADVISORY)
 
 
+def knows_no_project(_request: httpx.Request) -> httpx.Response:
+    """Answer as endoflife.date would if it covered no project at all."""
+    return httpx.Response(200, json={"result": []})
+
+
 class Callbacks:
     """Records what was delivered, and can be told to reject it."""
 
@@ -87,6 +93,10 @@ def sources_for(tmp_path: Path, callbacks: Callbacks | None = None) -> Sources:
         cache=SbomCache(tmp_path),
         registry=DepsDevClient(transport=httpx.MockTransport(serve_graph)),
         osv=OsvClient(transport=httpx.MockTransport(serve_advisories)),
+        support=EndOfLifeClient(
+            cache=ExpiringCache(tmp_path / "endoflife"),
+            transport=httpx.MockTransport(knows_no_project),
+        ),
         transport=httpx.MockTransport(callbacks) if callbacks else None,
     )
 

@@ -18,7 +18,8 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 
 from sbom_security import __version__
-from sbom_security.cache import SbomCache
+from sbom_security.cache import ExpiringCache, SbomCache
+from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.github import DEFAULT_REF, FileNotFound, GitHubSource, LockfileNotFound
 from sbom_security.jobs import NOT_FOUND, JobState, QueueOverview
 from sbom_security.lockfile import parse_package_lock_data
@@ -98,7 +99,10 @@ async def lifespan(application: FastAPI):
 app = FastAPI(
     title="sbom-security",
     version=__version__,
-    description="Report dependencies and the known vulnerabilities affecting them.",
+    description=(
+        "Report dependencies, the known vulnerabilities affecting them, and whether "
+        "they are still supported."
+    ),
     lifespan=lifespan,
 )
 
@@ -133,6 +137,11 @@ def get_cache() -> SbomCache:
     return SbomCache(CACHE_DIRECTORY)
 
 
+def get_support_source() -> EndOfLifeClient:
+    """Provide the support-lifecycle source, so tests can substitute their own."""
+    return EndOfLifeClient(cache=ExpiringCache(CACHE_DIRECTORY / "endoflife"))
+
+
 @dataclass(frozen=True)
 class Sources:
     """Everything a report is built from.
@@ -147,6 +156,7 @@ class Sources:
     npm: NpmRegistry
     pypi: PyPiIndex
     cache: SbomCache
+    support: EndOfLifeClient
 
 
 def get_sources(
@@ -156,9 +166,16 @@ def get_sources(
     npm: Annotated[NpmRegistry, Depends(get_npm_registry)],
     pypi: Annotated[PyPiIndex, Depends(get_pypi_index)],
     cache: Annotated[SbomCache, Depends(get_cache)],
+    support: Annotated[EndOfLifeClient, Depends(get_support_source)],
 ) -> Sources:
     return Sources(
-        osv=osv, github=github, registry=registry, npm=npm, pypi=pypi, cache=cache
+        osv=osv,
+        github=github,
+        registry=registry,
+        npm=npm,
+        pypi=pypi,
+        cache=cache,
+        support=support,
     )
 
 
@@ -191,6 +208,7 @@ async def _report_from_lockfile(
         target=Target(name=name, ecosystem=NPM, source=LOCKFILE),
         dependencies=to_dependencies(refs[:limit]),
         client=sources.osv,
+        support=sources.support,
         truncated=len(refs) > limit,
     )
 
@@ -218,6 +236,7 @@ async def _report_from_declared(
         target=target,
         dependencies=to_dependencies(packages),
         client=sources.osv,
+        support=sources.support,
         truncated=resolution.truncated or len(resolution.packages) > limit,
         unresolved=unresolvable + resolution.unresolved,
     )
@@ -431,6 +450,7 @@ async def report_for_npm_package(
             cache=sources.cache,
             registry=sources.registry,
             osv=sources.osv,
+            support=sources.support,
             depth=depth,
         )
     except PackageNotFound as missing:

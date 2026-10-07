@@ -20,8 +20,10 @@ from sbom_security.api import (
     get_pypi_index,
     get_queue,
     get_registry_client,
+    get_support_source,
 )
 from sbom_security.cache import SbomCache
+from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.github import GitHubSource
 from sbom_security.jobs import (
     COMPLETE,
@@ -197,7 +199,7 @@ def fixture_queue():
 
 
 @pytest.fixture(name="client")
-def fixture_client(tmp_path: Path, queue: FakeQueue):
+def fixture_client(tmp_path: Path, queue: FakeQueue, support_source: EndOfLifeClient):
     app.dependency_overrides[get_osv_client] = lambda: OsvClient(
         transport=httpx.MockTransport(handle)
     )
@@ -214,6 +216,7 @@ def fixture_client(tmp_path: Path, queue: FakeQueue):
         transport=httpx.MockTransport(serve_released_versions)
     )
     app.dependency_overrides[get_cache] = lambda: SbomCache(tmp_path)
+    app.dependency_overrides[get_support_source] = lambda: support_source
     app.dependency_overrides[get_queue] = lambda: queue
     yield TestClient(app)
     app.dependency_overrides.clear()
@@ -293,9 +296,27 @@ def test_a_python_report_names_its_ecosystem(client):
 def test_a_report_carries_a_schema_version_and_a_timestamp(client):
     payload = client.post("/reports/npm-lockfile", json=LOCKFILE).json()
 
-    assert payload["schema_version"] == "1.1"
+    assert payload["schema_version"] == "1.2"
     assert payload["tool"] == "sbom-security"
     assert payload["generated_at"]
+
+
+def test_each_dependency_says_whether_it_is_still_supported(client):
+    payload = client.post("/reports/npm-lockfile", json=LOCKFILE).json()
+    by_name = {dependency["name"]: dependency for dependency in payload["dependencies"]}
+
+    assert by_name["express"]["support"]["line"] == "4"
+    assert by_name["express"]["support"]["status"] == "supported"
+    # No published policy covers accepts; the report says so rather than guessing.
+    assert by_name["accepts"]["support"] is None
+
+
+def test_a_package_report_carries_support_status_too(client):
+    payload = client.get(
+        "/reports/npm-package", params={"name": "express", "version": "4.18.0"}
+    ).json()
+
+    assert payload["dependencies"][0]["support"]["status"] == "supported"
 
 
 def test_reports_on_a_package_and_its_dependencies(client):

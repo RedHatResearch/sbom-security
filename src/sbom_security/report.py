@@ -1,16 +1,18 @@
 """Assemble the report for a scan target.
 
 This is where the pieces meet: the dependencies a project has, normalized to Package
-URLs, matched against the vulnerability source, and wrapped with enough context that
-the answer can be read correctly later.
+URLs, matched against the vulnerability and support sources, and wrapped with enough
+context that the answer can be read correctly later.
 """
 
+import asyncio
 from collections.abc import Sequence
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from typing import Any
 
 from sbom_security.cache import SbomCache
+from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.models import (
     NPM,
     PACKAGE,
@@ -36,29 +38,39 @@ async def build_report(
     target: Target,
     dependencies: Sequence[Dependency],
     client: OsvClient,
+    support: EndOfLifeClient,
     truncated: bool = False,
     unresolved: tuple[str, ...] = (),
 ) -> Report:
-    """Match dependencies against the vulnerability source and collect the results.
+    """Match dependencies against the vulnerability and support sources.
 
-    Every dependency is reported, since the inventory is useful on its own. Findings
-    cover only those with known vulnerabilities, in the order the dependencies appear.
+    Every dependency is reported, since the inventory is useful on its own, each with
+    its support status where its project publishes one. Findings cover only those with
+    known vulnerabilities, in the order the dependencies appear. Both sources are asked
+    at once, since neither needs the other's answer.
     """
-    affected = await client.find_vulnerabilities(dependencies)
+    affected, supported = await asyncio.gather(
+        client.find_vulnerabilities(dependencies),
+        support.find_support(dependencies),
+    )
+    reported = tuple(
+        replace(dependency, support=supported.get(dependency.purl))
+        for dependency in dependencies
+    )
     findings = tuple(
         Finding(dependency=dependency, vulnerabilities=affected[dependency.purl])
-        for dependency in dependencies
+        for dependency in reported
         if dependency.purl in affected
     )
 
     return Report(
         target=target,
         summary=Summary(
-            dependencies=len(dependencies),
+            dependencies=len(reported),
             vulnerable=len(findings),
             vulnerabilities=sum(len(finding.vulnerabilities) for finding in findings),
         ),
-        dependencies=tuple(dependencies),
+        dependencies=reported,
         findings=findings,
         generated_at=now(),
         truncated=truncated,
@@ -72,6 +84,7 @@ async def report_for_package(
     cache: SbomCache,
     registry: DepsDevClient,
     osv: OsvClient,
+    support: EndOfLifeClient,
     depth: int = DEFAULT_DEPTH,
 ) -> Report:
     """Resolve one package's dependencies and report on what they carry.
@@ -86,6 +99,7 @@ async def report_for_package(
         target=Target(name=f"{name}@{version}", ecosystem=NPM, source=PACKAGE),
         dependencies=to_dependencies(resolution.packages),
         client=osv,
+        support=support,
         truncated=resolution.truncated,
         unresolved=resolution.unresolved,
     )

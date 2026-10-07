@@ -28,3 +28,9 @@ def test_report_holds_dependencies_and_findings():
     assert report.dependencies[0].name == "express"
     assert report.findings[0].vulnerabilities[0].id == "GHSA-example"
     assert report.target.source == LOCKFILE
+
+
+def test_a_dependency_has_no_support_status_until_one_is_found():
+    dependency = Dependency(name="lodash", version="4.17.21", purl="pkg:npm/lodash@4.17.21")
+
+    assert dependency.support is None

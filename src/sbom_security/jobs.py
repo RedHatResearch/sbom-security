@@ -12,7 +12,8 @@ from typing import Any
 
 import httpx
 
-from sbom_security.cache import SbomCache
+from sbom_security.cache import ExpiringCache, SbomCache
+from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.models import PackageRef
 from sbom_security.osv import OsvClient
 from sbom_security.purl import to_purl
@@ -65,6 +66,7 @@ class Sources:
     cache: SbomCache
     registry: DepsDevClient
     osv: OsvClient
+    support: EndOfLifeClient
     transport: httpx.AsyncBaseTransport | None = None
 
     @classmethod
@@ -73,6 +75,7 @@ class Sources:
             cache=SbomCache(CACHE_DIRECTORY),
             registry=DepsDevClient(),
             osv=OsvClient(),
+            support=EndOfLifeClient(cache=ExpiringCache(CACHE_DIRECTORY / "endoflife")),
         )
 
 
@@ -94,7 +97,7 @@ async def report_on_package(
     callback_url: str | None = None,
     sources: Sources | None = None,
 ) -> dict[str, Any]:
-    """Resolve a package's dependencies and report the vulnerabilities affecting them.
+    """Resolve a package's dependencies and report what affects them.
 
     Walking the tree fills the SBOM cache along the way, so later work involving any
     of the same versions finds them already resolved.
@@ -107,6 +110,7 @@ async def report_on_package(
         cache=sources.cache,
         registry=sources.registry,
         osv=sources.osv,
+        support=sources.support,
         depth=depth,
     )
 
