@@ -91,7 +91,7 @@ def handle(request: httpx.Request) -> httpx.Response:
         queries = json.loads(request.content)["queries"]
         results: list[dict[str, Any]] = [
             {"vulns": [{"id": "GHSA-example-1"}]}
-            if "/express@" in query["package"]["purl"]
+            if "/express@" in query["package"].get("purl", "")
             else {}
             for query in queries
         ]
@@ -619,14 +619,21 @@ def test_reports_on_a_container_image(client):
     assert payload["target"]["source"] == "image"
     assert payload["target"]["ecosystem"] == "oci"
     assert payload["target"]["name"].startswith("docker.io/library/node:22-alpine@sha256:")
-    assert {dependency["ecosystem"] for dependency in payload["dependencies"]} == {"npm"}
+    assert {dependency["ecosystem"] for dependency in payload["dependencies"]} == {
+        "npm",
+        "apk",
+    }
 
 
-def test_an_images_operating_system_packages_are_listed_as_not_assessed(client):
+def test_an_images_operating_system_packages_are_assessed_too(client):
     payload = client.get("/reports/image", params={"reference": "node:22-alpine"}).json()
+    alpine = [d for d in payload["dependencies"] if d["ecosystem"] == "apk"]
 
-    assert any(purl.startswith("pkg:apk/alpine/") for purl in payload["not_assessed"])
-    assert not any(d["purl"].startswith("pkg:apk/") for d in payload["dependencies"])
+    assert alpine
+    # The distribution supports these, whatever their upstream projects do.
+    assert all(d["support"] is None for d in alpine)
+    # Left over is only what nothing could be asked about: the Node.js binary.
+    assert payload["not_assessed"] == ["pkg:generic/node@22.23.3"]
 
 
 def test_an_image_report_respects_the_limit(client):

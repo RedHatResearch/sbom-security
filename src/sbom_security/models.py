@@ -125,7 +125,9 @@ class Dependency:
     """A resolved dependency at an exact version, normalized to a Package URL.
 
     ``support`` is None when no published support policy is known for the package,
-    which is not the same as the package being unsupported.
+    which is not the same as the package being unsupported. A package a Linux
+    distribution ships always has None: the distribution supports it for as long as
+    it supports the release, whatever the upstream project does.
     """
 
     name: str
@@ -212,9 +214,9 @@ class Report:
     vulnerabilities. ``truncated`` says whether a limit stopped the whole set from
     being examined, and ``unresolved`` names what could not be resolved at all — a
     local path, a git dependency, a package no index knows. ``not_assessed`` names
-    what was found but not checked against vulnerability data, such as the operating
-    system packages in an image. All three exist so that a partial report is never
-    mistaken for a clean one.
+    what was found but not checked against vulnerability data, such as an image's
+    packages from a distribution not handled yet. All three exist so that a partial
+    report is never mistaken for a clean one.
 
     ``generated_at`` and ``tool`` record when the answer was produced and by what.
     Vulnerability data changes daily, so a report without a date is not reproducible

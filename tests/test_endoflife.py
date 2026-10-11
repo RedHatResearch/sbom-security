@@ -20,6 +20,7 @@ from sbom_security.models import (
     PUBLISHED,
     PYPI,
     SUPPORTED,
+    Dependency,
     PackageRef,
     Support,
 )
@@ -304,3 +305,15 @@ async def test_says_when_the_data_was_retrieved(tmp_path: Path):
     support = await support_of(PackageRef("express", "4.18.0"), tmp_path)
 
     assert support.retrieved_at == "2026-10-07T12:00:00+00:00"
+
+
+async def test_a_distribution_package_is_not_looked_up(tmp_path: Path):
+    # A distribution supports what it ships for as long as it supports the release:
+    # RHEL 9 keeps Python 3.9 patched long after upstream stopped.
+    fake = FakeEndOfLife()
+    python = Dependency(
+        "python3", "3.9.21-2.el9", "pkg:rpm/redhat/python3@3.9.21-2.el9?distro=rhel-9.8", "rpm"
+    )
+
+    assert await fake.client(tmp_path).find_support([python]) == {}
+    assert fake.paths == []

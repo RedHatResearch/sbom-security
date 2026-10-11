@@ -103,9 +103,12 @@ well as by the reference asked for, since a tag such as `latest` can point at a
 different image tomorrow.
 
 npm and Python packages found in the image are matched like any other dependency.
-Operating system packages (RPM, deb, apk) are listed under `not_assessed` instead:
-they are versioned by their distribution, and matching them against upstream
-advisories would report fixed packages as vulnerable.
+Operating system packages are matched against their distribution's own advisories
+rather than upstream ones, because a distribution often fixes a vulnerability by
+backporting the patch without changing the upstream version: `openssl-3.0.7-25.el9`
+can be fixed while upstream 3.0.7 is not. That covers Red Hat Enterprise Linux,
+including UBI images, Debian and Alpine. Packages from other distributions are listed
+under `not_assessed` rather than matched wrongly.
 
 Reading an image takes from seconds to minutes, so for a large one submit it as work
 (`POST /jobs/image?reference=...`). A report on a tag is then reused for up to an hour.
@@ -196,9 +199,9 @@ project will often find more.
 **Completeness is reported, never implied.** `truncated` means a limit stopped the scan
 short. `unresolved` names dependencies that could not be resolved at all — a local path,
 a git dependency, an unpublished package, a `-r other.txt` that was not followed.
-`not_assessed` names what was found but not checked for vulnerabilities, such as the
-operating system packages in an image. A scan examines 500 dependencies by default;
-raise it with `&limit=3000`.
+`not_assessed` names what was found but not checked for vulnerabilities, such as an
+image's packages from a distribution not handled yet. A scan examines 500 dependencies
+by default; raise it with `&limit=3000`.
 
 `generated_at` matters because vulnerability data changes daily: an undated report
 cannot be compared against a later one.
@@ -210,6 +213,8 @@ publishes a support policy. The data comes from [endoflife.date](https://endofli
 which tracks several hundred products. For npm and PyPI that includes Express, React,
 Angular, Vue, Next.js, ESLint, Django and NumPy, among others. A dependency it does not
 cover has `"support": null`: no policy is known, which is not the same as no support.
+Packages a Linux distribution ships always have `null`: the distribution supports them
+for as long as it supports the release, whatever the upstream project does.
 
 | `status` | Means |
 | -------- | ----- |

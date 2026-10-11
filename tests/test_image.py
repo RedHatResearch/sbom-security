@@ -186,11 +186,29 @@ def test_npm_and_python_packages_are_assessed():
     assert held_back == ()
 
 
-def test_operating_system_packages_and_binaries_are_held_back():
+def test_packages_from_a_handled_distribution_are_assessed():
     found = (
-        "pkg:rpm/redhat/bash@5.1.8-9.el9?arch=x86_64&distro=rhel-9.8",
+        "pkg:rpm/redhat/openssl-libs@3.5.8-1.el9_8?arch=x86_64&distro=rhel-9.8&epoch=1",
         "pkg:deb/debian/apt@3.0.3?arch=amd64&distro=debian-13.7",
-        "pkg:apk/alpine/musl@1.2.5-r10?arch=x86_64&distro=alpine-3.24.2",
+        "pkg:apk/alpine/musl@1.2.6-r2?arch=x86_64&distro=alpine-3.24.2",
+    )
+
+    assessed, held_back = assess(found)
+
+    assert [(d.name, d.version, d.ecosystem) for d in assessed] == [
+        ("openssl-libs", "1:3.5.8-1.el9_8", "rpm"),
+        ("apt", "3.0.3", "deb"),
+        ("musl", "1.2.6-r2", "apk"),
+    ]
+    # Kept exactly as found, since the qualifiers say how to ask about each one.
+    assert [d.purl for d in assessed] == list(found)
+    assert held_back == ()
+
+
+def test_other_distributions_and_binaries_are_held_back():
+    found = (
+        "pkg:deb/ubuntu/libssl3@3.0.2-0ubuntu1.18?arch=amd64&distro=ubuntu-22.04",
+        "pkg:rpm/centos/bash@5.1.8-9.el9?arch=x86_64&distro=centos-9",
         "pkg:generic/node@22.23.3",
     )
 
@@ -200,23 +218,26 @@ def test_operating_system_packages_and_binaries_are_held_back():
     assert held_back == found
 
 
-async def test_nothing_in_an_rhel_image_is_assessed_yet():
+async def test_every_package_in_an_rhel_image_is_assessed():
     scanner = SyftScanner(run=RecordedSyft("ubi-minimal.syft.json"))
 
     assessed, held_back = assess((await scanner.inventory("ubi9/ubi-minimal")).packages)
 
-    assert assessed == ()
-    assert len(held_back) == 109
-    assert all(purl.startswith("pkg:rpm/redhat/") for purl in held_back)
+    assert len(assessed) == 109
+    assert {dependency.ecosystem for dependency in assessed} == {"rpm"}
+    assert held_back == ()
 
 
-async def test_an_application_image_is_mostly_assessed():
+async def test_an_application_image_is_assessed_layer_by_layer():
     scanner = SyftScanner(run=RecordedSyft("juice-shop.syft.json"))
 
     assessed, held_back = assess((await scanner.inventory("bkimminich/juice-shop")).packages)
 
-    assert {dependency.ecosystem for dependency in assessed} == {"npm"}
-    assert any(purl.startswith("pkg:deb/") for purl in held_back)
+    assert {dependency.ecosystem for dependency in assessed} == {"npm", "deb"}
+    # Left over is what nothing could be asked about: the Node.js binary, and
+    # package.json files that carry no version.
+    assert "pkg:generic/node@24.19.0" in held_back
+    assert all(purl.startswith(("pkg:generic/", "pkg:npm/")) for purl in held_back)
 
 
 async def test_running_returns_what_the_program_writes():

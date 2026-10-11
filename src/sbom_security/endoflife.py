@@ -23,6 +23,7 @@ import httpx
 from packaging.version import InvalidVersion, Version
 
 from sbom_security.cache import ExpiringCache, Stored
+from sbom_security.distribution import PACKAGE_TYPES as DISTRIBUTION_TYPES
 from sbom_security.models import (
     ACTIVE,
     END_OF_LIFE,
@@ -71,7 +72,16 @@ class EndOfLifeClient:
 
         A dependency is absent when endoflife.date does not cover its project, or
         covers the project but not the release line its version belongs to.
+
+        A package a Linux distribution ships is never looked up. The distribution
+        supports it for as long as it supports the release, whatever the upstream
+        project does: RHEL 9 keeps Python 3.9 patched long after upstream stopped.
         """
+        dependencies = [
+            dependency
+            for dependency in dependencies
+            if dependency.ecosystem not in DISTRIBUTION_TYPES
+        ]
         if not dependencies:
             return {}
 

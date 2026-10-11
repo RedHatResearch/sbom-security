@@ -70,7 +70,7 @@ def serve_advisories(request: httpx.Request) -> httpx.Response:
             json={
                 "results": [
                     {"vulns": [{"id": "GHSA-example-1"}]}
-                    if "/express@" in query["package"]["purl"]
+                    if "/express@" in query["package"].get("purl", "")
                     else {}
                     for query in queries
                 ]
@@ -225,7 +225,7 @@ async def test_produces_a_report_on_an_image(tmp_path: Path, image_scanner: Syft
 
     assert report["target"]["source"] == "image"
     assert report["dependencies"]
-    assert any(purl.startswith("pkg:apk/") for purl in report["not_assessed"])
+    assert any(dependency["ecosystem"] == "apk" for dependency in report["dependencies"])
 
 
 async def test_an_image_that_cannot_be_read_fails_the_work(tmp_path: Path):

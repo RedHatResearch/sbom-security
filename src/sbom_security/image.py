@@ -23,6 +23,7 @@ from typing import Any
 
 from packageurl import PackageURL
 
+from sbom_security import distribution
 from sbom_security.models import NPM, PYPI, Dependency, PackageRef
 from sbom_security.purl import to_dependency
 
@@ -50,10 +51,10 @@ SCAN_TIMEOUT = 300.0
 # Each scan downloads a whole image to temporary storage, so only a few run at once.
 MAX_CONCURRENT_SCANS = 2
 
-# The package types matched against vulnerability data. Operating system packages are
-# versioned by their distribution and need the distribution's own advisories, so they
-# are held back rather than matched against upstream ones and wrongly reported.
-ASSESSED_TYPES = (NPM, PYPI)
+# Language package types, matched by Package URL. Distribution packages are matched
+# against their distribution's own advisories where ``distribution`` handles it, and
+# held back otherwise rather than matched against upstream ones and wrongly reported.
+LANGUAGE_TYPES = (NPM, PYPI)
 
 _COMPONENT = r"[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*"
 _REPOSITORY = re.compile(rf"{_COMPONENT}(?:/{_COMPONENT})*")
@@ -280,10 +281,14 @@ def assess(packages: Sequence[str]) -> tuple[tuple[Dependency, ...], tuple[str, 
         except ValueError:
             held_back.append(purl)
             continue
-        if parsed.type in ASSESSED_TYPES and parsed.version:
+        if parsed.type in LANGUAGE_TYPES and parsed.version:
             name = f"{parsed.namespace}/{parsed.name}" if parsed.namespace else parsed.name
             ref = PackageRef(name=name, version=parsed.version, ecosystem=parsed.type)
             assessed[to_dependency(ref)] = None
+        elif distribution.ecosystems(parsed):
+            # Kept exactly as found: its qualifiers say how to ask about it.
+            version = distribution.installed_version(parsed)
+            assessed[Dependency(parsed.name, version, purl, parsed.type)] = None
         else:
             held_back.append(purl)
     return tuple(assessed), tuple(held_back)
