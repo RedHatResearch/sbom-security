@@ -16,6 +16,7 @@ alone does not convey.
 | ------ | ----- | ------- | -------- |
 | OSV.dev | https://osv.dev | Records carry their upstream licenses; see osv.dev | The vulnerability database and its schema. Aggregates GitHub Security Advisories, PyPA, RustSec, the Go vulnerability database and around twenty further feeds, along with the advisories Red Hat, Debian and Alpine publish for their own packages, so this project does not maintain a vulnerability database of its own. |
 | deps.dev | https://deps.dev | See deps.dev | Resolved dependency graphs per package version. A package declares version ranges, and turning those into exact versions means reimplementing part of npm's resolver; deps.dev has already done it. |
+| CVE records | https://www.cve.org | CVE Terms of Use, © The MITRE Corporation | The cases of the CVE extraction dataset in `evaluation/`, reproduced unchanged with MITRE's copyright designation and license. |
 | endoflife.date | https://endoflife.date | MIT | Support lifecycles per release line, and which Package URLs belong to which product. Many projects publish how long each release line is supported, but no package registry records it; endoflife.date collects it for several hundred products. |
 
 ## Libraries

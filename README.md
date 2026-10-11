@@ -285,7 +285,7 @@ report themselves unavailable.
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 uvicorn sbom_security.api:app --reload
-pytest && pylint src/
+pytest && pylint src/ evaluation/
 ```
 
 Requires Python 3.12 or newer, and outbound network access to reach OSV.dev, deps.dev
@@ -312,6 +312,12 @@ version cannot change what it depends on, so a package depended on by fifty othe
 resolved once rather than fifty times. Support data changes rarely but does change, so
 it is kept under `.cache/endoflife` for 30 days. Vulnerability data is deliberately not
 cached — a package that is clean today can be vulnerable tomorrow.
+
+## Measuring CVE extraction
+
+`evaluation/` holds a dataset of CVE records, each with the structured data a careful
+reader should get from it, and a runner that measures any extraction tool against it,
+whether a command or a REST endpoint. See [evaluation/README.md](evaluation/README.md).
 
 ## Conventions
 
