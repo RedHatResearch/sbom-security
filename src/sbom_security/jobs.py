@@ -14,11 +14,13 @@ import httpx
 
 from sbom_security.cache import ExpiringCache, SbomCache
 from sbom_security.endoflife import EndOfLifeClient
-from sbom_security.models import PackageRef
+from sbom_security.image import SyftScanner, registries_from_environment
+from sbom_security.models import PackageRef, Report
 from sbom_security.osv import OsvClient
 from sbom_security.purl import to_purl
 from sbom_security.registry import DepsDevClient
-from sbom_security.report import as_dict, report_for_package
+from sbom_security.report import as_dict, report_for_image, report_for_package
+from sbom_security.resolver import MAX_PACKAGES
 
 CACHE_DIRECTORY = Path(os.environ.get("SBOM_CACHE_DIR", ".cache"))
 
@@ -67,6 +69,7 @@ class Sources:
     registry: DepsDevClient
     osv: OsvClient
     support: EndOfLifeClient
+    scanner: SyftScanner
     transport: httpx.AsyncBaseTransport | None = None
 
     @classmethod
@@ -76,6 +79,7 @@ class Sources:
             registry=DepsDevClient(),
             osv=OsvClient(),
             support=EndOfLifeClient(cache=ExpiringCache(CACHE_DIRECTORY / "endoflife")),
+            scanner=SyftScanner(registries=registries_from_environment()),
         )
 
 
@@ -113,7 +117,44 @@ async def report_on_package(
         support=sources.support,
         depth=depth,
     )
+    return await _deliver(report, callback_url, sources)
 
+
+def image_job_id(reference: str) -> str:
+    """Return a stable identifier for a report on an image.
+
+    The reference arrives spelled out in full, so ``python:3.12-slim`` and
+    ``docker.io/library/python:3.12-slim`` share one job.
+    """
+    return f"image:{reference}"
+
+
+async def report_on_image(
+    reference: str,
+    callback_url: str | None = None,
+    sources: Sources | None = None,
+) -> dict[str, Any]:
+    """Find what a container image contains, and report on it.
+
+    Nobody is waiting on submitted work, so the image is examined up to the same
+    ceiling as a dependency walk rather than the smaller default a direct request gets.
+    """
+    sources = sources or Sources.default()
+
+    report = await report_for_image(
+        reference,
+        scanner=sources.scanner,
+        osv=sources.osv,
+        support=sources.support,
+        limit=MAX_PACKAGES,
+    )
+    return await _deliver(report, callback_url, sources)
+
+
+async def _deliver(
+    report: Report, callback_url: str | None, sources: Sources
+) -> dict[str, Any]:
+    """Return a finished report as plain data, posting it on if an address was given."""
     payload = as_dict(report)
     if callback_url:
         await _notify(callback_url, payload, sources.transport)

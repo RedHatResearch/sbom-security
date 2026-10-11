@@ -20,12 +20,14 @@ from sbom_security.jobs import (
     QUEUED,
     JobState,
     QueueOverview,
+    image_job_id,
     job_id,
 )
 
 REDIS_DSN = os.environ.get("REDIS_DSN", "redis://localhost:6379")
 
 TASK = "report_on_package"
+IMAGE_TASK = "report_on_image"
 
 # arq marks a job as taken by writing this key. Mirrored here rather than imported so
 # that the dependency stays to arq's public interface.
@@ -69,6 +71,19 @@ class ArqQueue:
         identifier = job_id(name, version, depth)
         await self.redis.enqueue_job(
             TASK, name, version, depth, callback_url, _job_id=identifier
+        )
+        return identifier
+
+    async def submit_image(self, reference: str, callback_url: str | None = None) -> str:
+        """Queue a report on an image, or return the identifier of one already queued.
+
+        arq also refuses an identifier whose finished result it still keeps, an hour by
+        default, so a report on a tag such as ``latest`` is reused for that long rather
+        than redone.
+        """
+        identifier = image_job_id(reference)
+        await self.redis.enqueue_job(
+            IMAGE_TASK, reference, callback_url, _job_id=identifier
         )
         return identifier
 

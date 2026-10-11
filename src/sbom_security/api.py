@@ -21,6 +21,14 @@ from sbom_security import __version__
 from sbom_security.cache import ExpiringCache, SbomCache
 from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.github import DEFAULT_REF, FileNotFound, GitHubSource, LockfileNotFound
+from sbom_security.image import (
+    InvalidReference,
+    RegistryNotAllowed,
+    ScanFailed,
+    ScanTimedOut,
+    SyftScanner,
+    registries_from_environment,
+)
 from sbom_security.jobs import NOT_FOUND, JobState, QueueOverview
 from sbom_security.lockfile import parse_package_lock_data
 from sbom_security.manifest import parse_package_json
@@ -40,7 +48,7 @@ from sbom_security.purl import to_dependencies
 from sbom_security.pypi import PyPiIndex
 from sbom_security.queue import ArqQueue, connect
 from sbom_security.registry import DepsDevClient, PackageNotFound
-from sbom_security.report import build_report, report_for_package
+from sbom_security.report import build_report, report_for_image, report_for_package
 from sbom_security.requirements import parse_requirements_txt
 from sbom_security.resolver import DEFAULT_DEPTH, resolve_declared
 
@@ -142,6 +150,11 @@ def get_support_source() -> EndOfLifeClient:
     return EndOfLifeClient(cache=ExpiringCache(CACHE_DIRECTORY / "endoflife"))
 
 
+def get_scanner() -> SyftScanner:
+    """Provide the container image scanner, so tests can substitute their own."""
+    return SyftScanner(registries=registries_from_environment())
+
+
 @dataclass(frozen=True)
 class Sources:
     """Everything a report is built from.
@@ -157,6 +170,7 @@ class Sources:
     pypi: PyPiIndex
     cache: SbomCache
     support: EndOfLifeClient
+    scanner: SyftScanner
 
 
 def get_sources(
@@ -167,6 +181,7 @@ def get_sources(
     pypi: Annotated[PyPiIndex, Depends(get_pypi_index)],
     cache: Annotated[SbomCache, Depends(get_cache)],
     support: Annotated[EndOfLifeClient, Depends(get_support_source)],
+    scanner: Annotated[SyftScanner, Depends(get_scanner)],
 ) -> Sources:
     return Sources(
         osv=osv,
@@ -176,6 +191,7 @@ def get_sources(
         pypi=pypi,
         cache=cache,
         support=support,
+        scanner=scanner,
     )
 
 
@@ -455,3 +471,62 @@ async def report_for_npm_package(
         )
     except PackageNotFound as missing:
         raise HTTPException(status_code=404, detail=str(missing)) from missing
+
+
+def _checked_image(reference: str, sources: Sources) -> str:
+    """Spell out an image reference in full, or refuse it with the reason."""
+    try:
+        return str(sources.scanner.check(reference))
+    except (InvalidReference, RegistryNotAllowed) as refused:
+        raise HTTPException(status_code=400, detail=str(refused)) from refused
+
+
+@app.get("/reports/image")
+async def report_for_container_image(
+    reference: str,
+    sources: Annotated[Sources, Depends(get_sources)],
+    limit: Limit = DEFAULT_LIMIT,
+) -> Report:
+    """Report on a container image, read straight from its registry.
+
+    The image is never run and needs no container runtime. ``reference`` is written as
+    it would be for ``docker pull``, such as ``python:3.12-slim`` or
+    ``registry.access.redhat.com/ubi9/ubi-minimal``. Reading a large image takes a
+    while, so submit it as work instead rather than hold the connection open.
+    """
+    checked = _checked_image(reference, sources)
+    try:
+        return await report_for_image(
+            checked,
+            scanner=sources.scanner,
+            osv=sources.osv,
+            support=sources.support,
+            limit=limit,
+        )
+    except ScanTimedOut as slow:
+        raise HTTPException(status_code=504, detail=str(slow)) from slow
+    except ScanFailed as failed:
+        raise HTTPException(
+            status_code=502, detail=f"The image could not be read: {failed}"
+        ) from failed
+
+
+@app.post("/jobs/image", status_code=status.HTTP_202_ACCEPTED)
+async def submit_container_image(
+    reference: str,
+    queue: Annotated[ArqQueue, Depends(get_queue)],
+    sources: Annotated[Sources, Depends(get_sources)],
+    response: Response,
+    callback_url: str | None = None,
+) -> JobState:
+    """Hand an image to a worker and return straight away.
+
+    The reference is checked and spelled out here, so that a mistake is reported at
+    once rather than when the work fails, and so that ``python:3.12-slim`` and
+    ``docker.io/library/python:3.12-slim`` share one job. A tag can move, so a finished
+    report on one is reused only for as long as the queue keeps it, an hour by default.
+    """
+    checked = _checked_image(reference, sources)
+    identifier = await queue.submit_image(checked, callback_url)
+    response.headers["Location"] = f"/jobs/{identifier}"
+    return await queue.state(identifier)

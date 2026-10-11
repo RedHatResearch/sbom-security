@@ -11,6 +11,9 @@ from dataclasses import dataclass
 NPM = "npm"
 PYPI = "pypi"
 
+# The Package URL type of a container image, which is what an image report is about.
+OCI = "oci"
+
 
 @dataclass(frozen=True)
 class PackageRef:
@@ -138,6 +141,7 @@ class Dependency:
 LOCKFILE = "lockfile"
 MANIFEST = "manifest"
 PACKAGE = "package"
+IMAGE = "image"
 
 
 @dataclass(frozen=True)
@@ -151,6 +155,8 @@ class Target:
       them. What the project would get if it installed today, which is usually newer,
       and therefore usually cleaner, than what it really runs.
     - ``package`` — one package and the dependencies its released version declares.
+    - ``image`` — what a container image contains, found by reading it. What is
+      actually installed, however it got there.
     """
 
     name: str
@@ -194,7 +200,7 @@ class Finding:
 
 
 # Raised when the shape of a report changes in a way a reader would notice.
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.3"
 
 
 @dataclass(frozen=True)
@@ -205,8 +211,10 @@ class Report:
     where its project publishes one; ``findings`` holds only the subset with known
     vulnerabilities. ``truncated`` says whether a limit stopped the whole set from
     being examined, and ``unresolved`` names what could not be resolved at all — a
-    local path, a git dependency, a package no index knows. Both exist so that a
-    partial report is never mistaken for a clean one.
+    local path, a git dependency, a package no index knows. ``not_assessed`` names
+    what was found but not checked against vulnerability data, such as the operating
+    system packages in an image. All three exist so that a partial report is never
+    mistaken for a clean one.
 
     ``generated_at`` and ``tool`` record when the answer was produced and by what.
     Vulnerability data changes daily, so a report without a date is not reproducible
@@ -220,5 +228,6 @@ class Report:
     generated_at: str
     truncated: bool = False
     unresolved: tuple[str, ...] = ()
+    not_assessed: tuple[str, ...] = ()
     schema_version: str = SCHEMA_VERSION
     tool: str = "sbom-security"

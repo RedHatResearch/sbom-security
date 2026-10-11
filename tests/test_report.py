@@ -153,3 +153,16 @@ async def test_report_serializes_to_json(support_source: EndOfLifeClient):
     assert payload["dependencies"][0]["purl"] == "pkg:npm/express@4.18.0"
     assert payload["dependencies"][0]["support"]["status"] == "supported"
     assert payload["findings"][0]["vulnerabilities"][0]["fixed_version"] == "4.18.1"
+
+
+async def test_what_was_found_but_not_assessed_is_listed_apart(
+    support_source: EndOfLifeClient,
+):
+    held_back = ("pkg:rpm/redhat/bash@5.1.8-9.el9?arch=x86_64&distro=rhel-9.8",)
+
+    report = await build_report(
+        TARGET, [EXPRESS], client_finding(set()), support_source, not_assessed=held_back
+    )
+
+    assert report.not_assessed == held_back
+    assert [dependency.name for dependency in report.dependencies] == ["express"]

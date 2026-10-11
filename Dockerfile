@@ -14,6 +14,12 @@ COPY pyproject.toml README.md ./
 COPY src/ ./src/
 RUN pip install --no-cache-dir .
 
+# Syft finds the packages inside container images. It is copied from its official
+# image pinned by digest, so every build gets exactly the binary that was reviewed
+# rather than whatever the tag points at today.
+COPY --from=docker.io/anchore/syft:v1.54.1@sha256:3eb5379ba7b409c3f4069b686110527af0c47df993fa5c10d13e7cf34f49b1aa /syft /usr/local/bin/syft
+ENV SYFT_CHECK_FOR_APP_UPDATE=false
+
 # Run as an unprivileged user rather than root. The cache directory is created here
 # so that a volume mounted over it inherits this ownership: Docker seeds an empty
 # named volume from the image, and without this the directory would arrive owned by

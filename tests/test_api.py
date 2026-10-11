@@ -20,17 +20,20 @@ from sbom_security.api import (
     get_pypi_index,
     get_queue,
     get_registry_client,
+    get_scanner,
     get_support_source,
 )
 from sbom_security.cache import SbomCache
 from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.github import GitHubSource
+from sbom_security.image import ScanTimedOut, SyftScanner
 from sbom_security.jobs import (
     COMPLETE,
     NOT_FOUND,
     QUEUED,
     JobState,
     QueueOverview,
+    image_job_id,
     job_id,
 )
 from sbom_security.npm import NpmRegistry
@@ -172,6 +175,7 @@ class FakeQueue:
     def __init__(self):
         self.submitted: list[tuple[str, str, int | None, str | None]] = []
         self.states: dict[str, JobState] = {}
+        self.submitted_images: list[tuple[str, str | None]] = []
         self.overview_result = QueueOverview(queued=0, running=())
 
     async def submit(
@@ -183,6 +187,12 @@ class FakeQueue:
     ) -> str:
         identifier = job_id(name, version, depth)
         self.submitted.append((name, version, depth, callback_url))
+        self.states.setdefault(identifier, JobState(id=identifier, status=QUEUED))
+        return identifier
+
+    async def submit_image(self, reference: str, callback_url: str | None = None) -> str:
+        identifier = image_job_id(reference)
+        self.submitted_images.append((reference, callback_url))
         self.states.setdefault(identifier, JobState(id=identifier, status=QUEUED))
         return identifier
 
@@ -199,7 +209,12 @@ def fixture_queue():
 
 
 @pytest.fixture(name="client")
-def fixture_client(tmp_path: Path, queue: FakeQueue, support_source: EndOfLifeClient):
+def fixture_client(
+    tmp_path: Path,
+    queue: FakeQueue,
+    support_source: EndOfLifeClient,
+    image_scanner: SyftScanner,
+):
     app.dependency_overrides[get_osv_client] = lambda: OsvClient(
         transport=httpx.MockTransport(handle)
     )
@@ -217,6 +232,7 @@ def fixture_client(tmp_path: Path, queue: FakeQueue, support_source: EndOfLifeCl
     )
     app.dependency_overrides[get_cache] = lambda: SbomCache(tmp_path)
     app.dependency_overrides[get_support_source] = lambda: support_source
+    app.dependency_overrides[get_scanner] = lambda: image_scanner
     app.dependency_overrides[get_queue] = lambda: queue
     yield TestClient(app)
     app.dependency_overrides.clear()
@@ -296,7 +312,7 @@ def test_a_python_report_names_its_ecosystem(client):
 def test_a_report_carries_a_schema_version_and_a_timestamp(client):
     payload = client.post("/reports/npm-lockfile", json=LOCKFILE).json()
 
-    assert payload["schema_version"] == "1.2"
+    assert payload["schema_version"] == "1.3"
     assert payload["tool"] == "sbom-security"
     assert payload["generated_at"]
 
@@ -595,3 +611,76 @@ def test_a_failed_job_says_why(client, queue):
 
     assert payload["status"] == "failed"
     assert "PackageNotFound" in payload["error"]
+
+
+def test_reports_on_a_container_image(client):
+    payload = client.get("/reports/image", params={"reference": "node:22-alpine"}).json()
+
+    assert payload["target"]["source"] == "image"
+    assert payload["target"]["ecosystem"] == "oci"
+    assert payload["target"]["name"].startswith("docker.io/library/node:22-alpine@sha256:")
+    assert {dependency["ecosystem"] for dependency in payload["dependencies"]} == {"npm"}
+
+
+def test_an_images_operating_system_packages_are_listed_as_not_assessed(client):
+    payload = client.get("/reports/image", params={"reference": "node:22-alpine"}).json()
+
+    assert any(purl.startswith("pkg:apk/alpine/") for purl in payload["not_assessed"])
+    assert not any(d["purl"].startswith("pkg:apk/") for d in payload["dependencies"])
+
+
+def test_an_image_report_respects_the_limit(client):
+    payload = client.get(
+        "/reports/image", params={"reference": "node:22-alpine", "limit": 10}
+    ).json()
+
+    assert len(payload["dependencies"]) == 10
+    assert payload["truncated"] is True
+
+
+def test_refuses_something_that_is_not_an_image(client):
+    response = client.get("/reports/image", params={"reference": "dir:/etc"})
+
+    assert response.status_code == 400
+
+
+def test_refuses_an_image_from_a_registry_that_is_not_on_the_list(client):
+    response = client.get(
+        "/reports/image", params={"reference": "10.0.0.5:5000/internal/app"}
+    )
+
+    assert response.status_code == 400
+    assert "not accepted" in response.json()["detail"]
+
+
+def test_an_image_that_cannot_be_read_is_reported_as_such(client):
+    response = client.get("/reports/image", params={"reference": "quay.io/nobody/nothing"})
+
+    assert response.status_code == 502
+    assert "MANIFEST_UNKNOWN" in response.json()["detail"]
+
+
+def test_an_image_that_takes_too_long_is_reported_as_such(client):
+    async def too_slow(_arguments, timeout):
+        raise ScanTimedOut(f"Reading the image took longer than {timeout:g} seconds")
+
+    app.dependency_overrides[get_scanner] = lambda: SyftScanner(run=too_slow)
+    response = client.get("/reports/image", params={"reference": "node:22-alpine"})
+
+    assert response.status_code == 504
+
+
+def test_submits_an_image_as_work(client, queue):
+    response = client.post("/jobs/image", params={"reference": "node:22-alpine"})
+
+    assert response.status_code == 202
+    # Spelled out in full, so that every way of naming the image shares one job.
+    assert queue.submitted_images == [("docker.io/library/node:22-alpine", None)]
+    assert response.headers["location"] == "/jobs/image:docker.io/library/node:22-alpine"
+
+
+def test_refuses_to_queue_something_that_is_not_an_image(client, queue):
+    response = client.post("/jobs/image", params={"reference": "dir:/etc"})
+
+    assert response.status_code == 400
+    assert queue.submitted_images == []

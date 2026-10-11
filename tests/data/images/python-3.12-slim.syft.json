@@ -1,0 +1,593 @@
+{
+ "descriptor": {
+  "name": "syft",
+  "version": "1.54.1"
+ },
+ "source": {
+  "type": "image",
+  "metadata": {
+   "userInput": "docker.io/library/python:3.12-slim",
+   "repoDigests": [
+    "index.docker.io/library/python@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f"
+   ],
+   "architecture": "amd64"
+  }
+ },
+ "distro": {
+  "id": "debian",
+  "versionID": "13.7",
+  "prettyName": "Debian GNU/Linux 13 (trixie)"
+ },
+ "artifacts": [
+  {
+   "name": "Simple Launcher",
+   "version": "1.1.0.14",
+   "type": "binary",
+   "purl": ""
+  },
+  {
+   "name": "Simple Launcher",
+   "version": "1.1.0.14",
+   "type": "binary",
+   "purl": ""
+  },
+  {
+   "name": "Simple Launcher",
+   "version": "1.1.0.14",
+   "type": "binary",
+   "purl": ""
+  },
+  {
+   "name": "Simple Launcher",
+   "version": "1.1.0.14",
+   "type": "binary",
+   "purl": ""
+  },
+  {
+   "name": "Simple Launcher",
+   "version": "1.1.0.14",
+   "type": "binary",
+   "purl": ""
+  },
+  {
+   "name": "Simple Launcher",
+   "version": "1.1.0.14",
+   "type": "binary",
+   "purl": ""
+  },
+  {
+   "name": "adduser",
+   "version": "3.152",
+   "type": "deb",
+   "purl": "pkg:deb/debian/adduser@3.152?arch=all&distro=debian-13.7"
+  },
+  {
+   "name": "apt",
+   "version": "3.0.3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/apt@3.0.3?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "base-files",
+   "version": "13.8+deb13u7",
+   "type": "deb",
+   "purl": "pkg:deb/debian/base-files@13.8%2Bdeb13u7?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "base-passwd",
+   "version": "3.6.7",
+   "type": "deb",
+   "purl": "pkg:deb/debian/base-passwd@3.6.7?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "bash",
+   "version": "5.2.37-2+b10",
+   "type": "deb",
+   "purl": "pkg:deb/debian/bash@5.2.37-2%2Bb10?arch=amd64&distro=debian-13.7&upstream=bash%405.2.37-2"
+  },
+  {
+   "name": "bsdutils",
+   "version": "1:2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/bsdutils@1%3A2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+  },
+  {
+   "name": "ca-certificates",
+   "version": "20250419",
+   "type": "deb",
+   "purl": "pkg:deb/debian/ca-certificates@20250419?arch=all&distro=debian-13.7"
+  },
+  {
+   "name": "coreutils",
+   "version": "9.7-3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/coreutils@9.7-3?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "dash",
+   "version": "0.5.12-12",
+   "type": "deb",
+   "purl": "pkg:deb/debian/dash@0.5.12-12?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "debconf",
+   "version": "1.5.91",
+   "type": "deb",
+   "purl": "pkg:deb/debian/debconf@1.5.91?arch=all&distro=debian-13.7"
+  },
+  {
+   "name": "debian-archive-keyring",
+   "version": "2025.1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/debian-archive-keyring@2025.1?arch=all&distro=debian-13.7"
+  },
+  {
+   "name": "debianutils",
+   "version": "5.23.2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/debianutils@5.23.2?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "diffutils",
+   "version": "1:3.10-4",
+   "type": "deb",
+   "purl": "pkg:deb/debian/diffutils@1%3A3.10-4?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "dpkg",
+   "version": "1.22.22",
+   "type": "deb",
+   "purl": "pkg:deb/debian/dpkg@1.22.22?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "findutils",
+   "version": "4.10.0-3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/findutils@4.10.0-3?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "gcc-14-base",
+   "version": "14.2.0-19",
+   "type": "deb",
+   "purl": "pkg:deb/debian/gcc-14-base@14.2.0-19?arch=amd64&distro=debian-13.7&upstream=gcc-14"
+  },
+  {
+   "name": "grep",
+   "version": "3.11-4",
+   "type": "deb",
+   "purl": "pkg:deb/debian/grep@3.11-4?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "gzip",
+   "version": "1.13-1+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/gzip@1.13-1%2Bdeb13u1?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "hostname",
+   "version": "3.25",
+   "type": "deb",
+   "purl": "pkg:deb/debian/hostname@3.25?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "init-system-helpers",
+   "version": "1.69~deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/init-system-helpers@1.69~deb13u1?arch=all&distro=debian-13.7"
+  },
+  {
+   "name": "libacl1",
+   "version": "2.3.2-2+b1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libacl1@2.3.2-2%2Bb1?arch=amd64&distro=debian-13.7&upstream=acl%402.3.2-2"
+  },
+  {
+   "name": "libapt-pkg7.0",
+   "version": "3.0.3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libapt-pkg7.0@3.0.3?arch=amd64&distro=debian-13.7&upstream=apt"
+  },
+  {
+   "name": "libattr1",
+   "version": "1:2.5.2-3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libattr1@1%3A2.5.2-3?arch=amd64&distro=debian-13.7&upstream=attr"
+  },
+  {
+   "name": "libaudit-common",
+   "version": "1:4.0.2-2+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libaudit-common@1%3A4.0.2-2%2Bdeb13u1?arch=all&distro=debian-13.7&upstream=audit"
+  },
+  {
+   "name": "libaudit1",
+   "version": "1:4.0.2-2+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libaudit1@1%3A4.0.2-2%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=audit"
+  },
+  {
+   "name": "libblkid1",
+   "version": "2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libblkid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=util-linux"
+  },
+  {
+   "name": "libbsd0",
+   "version": "0.12.2-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libbsd0@0.12.2-2?arch=amd64&distro=debian-13.7&upstream=libbsd"
+  },
+  {
+   "name": "libbz2-1.0",
+   "version": "1.0.8-6",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libbz2-1.0@1.0.8-6?arch=amd64&distro=debian-13.7&upstream=bzip2"
+  },
+  {
+   "name": "libc-bin",
+   "version": "2.41-12+deb13u4",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libc-bin@2.41-12%2Bdeb13u4?arch=amd64&distro=debian-13.7&upstream=glibc"
+  },
+  {
+   "name": "libc6",
+   "version": "2.41-12+deb13u4",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libc6@2.41-12%2Bdeb13u4?arch=amd64&distro=debian-13.7&upstream=glibc"
+  },
+  {
+   "name": "libcap-ng0",
+   "version": "0.8.5-4+b1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libcap-ng0@0.8.5-4%2Bb1?arch=amd64&distro=debian-13.7&upstream=libcap-ng%400.8.5-4"
+  },
+  {
+   "name": "libcap2",
+   "version": "1:2.75-10+deb13u1+b3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libcap2@1%3A2.75-10%2Bdeb13u1%2Bb3?arch=amd64&distro=debian-13.7&upstream=libcap2%401%3A2.75-10%2Bdeb13u1"
+  },
+  {
+   "name": "libcrypt1",
+   "version": "1:4.4.38-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libcrypt1@1%3A4.4.38-1?arch=amd64&distro=debian-13.7&upstream=libxcrypt"
+  },
+  {
+   "name": "libdb5.3t64",
+   "version": "5.3.28+dfsg2-9",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libdb5.3t64@5.3.28%2Bdfsg2-9?arch=amd64&distro=debian-13.7&upstream=db5.3"
+  },
+  {
+   "name": "libdebconfclient0",
+   "version": "0.280",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libdebconfclient0@0.280?arch=amd64&distro=debian-13.7&upstream=cdebconf"
+  },
+  {
+   "name": "libffi8",
+   "version": "3.4.8-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libffi8@3.4.8-2?arch=amd64&distro=debian-13.7&upstream=libffi"
+  },
+  {
+   "name": "libgcc-s1",
+   "version": "14.2.0-19",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libgcc-s1@14.2.0-19?arch=amd64&distro=debian-13.7&upstream=gcc-14"
+  },
+  {
+   "name": "libgdbm6t64",
+   "version": "1.24-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libgdbm6t64@1.24-2?arch=amd64&distro=debian-13.7&upstream=gdbm"
+  },
+  {
+   "name": "libgmp10",
+   "version": "2:6.3.0+dfsg-3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libgmp10@2%3A6.3.0%2Bdfsg-3?arch=amd64&distro=debian-13.7&upstream=gmp"
+  },
+  {
+   "name": "libhogweed6t64",
+   "version": "3.10.1-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libhogweed6t64@3.10.1-1?arch=amd64&distro=debian-13.7&upstream=nettle"
+  },
+  {
+   "name": "liblastlog2-2",
+   "version": "2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/liblastlog2-2@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=util-linux"
+  },
+  {
+   "name": "liblz4-1",
+   "version": "1.10.0-4",
+   "type": "deb",
+   "purl": "pkg:deb/debian/liblz4-1@1.10.0-4?arch=amd64&distro=debian-13.7&upstream=lz4"
+  },
+  {
+   "name": "liblzma5",
+   "version": "5.8.1-1+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/liblzma5@5.8.1-1%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=xz-utils"
+  },
+  {
+   "name": "libmd0",
+   "version": "1.1.0-2+b1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libmd0@1.1.0-2%2Bb1?arch=amd64&distro=debian-13.7&upstream=libmd%401.1.0-2"
+  },
+  {
+   "name": "libmount1",
+   "version": "2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libmount1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=util-linux"
+  },
+  {
+   "name": "libncursesw6",
+   "version": "6.5+20250216-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libncursesw6@6.5%2B20250216-2?arch=amd64&distro=debian-13.7&upstream=ncurses"
+  },
+  {
+   "name": "libnettle8t64",
+   "version": "3.10.1-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libnettle8t64@3.10.1-1?arch=amd64&distro=debian-13.7&upstream=nettle"
+  },
+  {
+   "name": "libpam-modules",
+   "version": "1.7.0-5",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libpam-modules@1.7.0-5?arch=amd64&distro=debian-13.7&upstream=pam"
+  },
+  {
+   "name": "libpam-modules-bin",
+   "version": "1.7.0-5",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libpam-modules-bin@1.7.0-5?arch=amd64&distro=debian-13.7&upstream=pam"
+  },
+  {
+   "name": "libpam-runtime",
+   "version": "1.7.0-5",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libpam-runtime@1.7.0-5?arch=all&distro=debian-13.7&upstream=pam"
+  },
+  {
+   "name": "libpam0g",
+   "version": "1.7.0-5",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libpam0g@1.7.0-5?arch=amd64&distro=debian-13.7&upstream=pam"
+  },
+  {
+   "name": "libpcre2-8-0",
+   "version": "10.46-1~deb13u3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libpcre2-8-0@10.46-1~deb13u3?arch=amd64&distro=debian-13.7&upstream=pcre2"
+  },
+  {
+   "name": "libreadline8t64",
+   "version": "8.2-6",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libreadline8t64@8.2-6?arch=amd64&distro=debian-13.7&upstream=readline"
+  },
+  {
+   "name": "libseccomp2",
+   "version": "2.6.0-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libseccomp2@2.6.0-2?arch=amd64&distro=debian-13.7&upstream=libseccomp"
+  },
+  {
+   "name": "libselinux1",
+   "version": "3.8.1-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libselinux1@3.8.1-1?arch=amd64&distro=debian-13.7&upstream=libselinux"
+  },
+  {
+   "name": "libsemanage-common",
+   "version": "3.8.1-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libsemanage-common@3.8.1-1?arch=all&distro=debian-13.7&upstream=libsemanage"
+  },
+  {
+   "name": "libsemanage2",
+   "version": "3.8.1-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libsemanage2@3.8.1-1?arch=amd64&distro=debian-13.7&upstream=libsemanage"
+  },
+  {
+   "name": "libsepol2",
+   "version": "3.8.1-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libsepol2@3.8.1-1?arch=amd64&distro=debian-13.7&upstream=libsepol"
+  },
+  {
+   "name": "libsmartcols1",
+   "version": "2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libsmartcols1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=util-linux"
+  },
+  {
+   "name": "libsqlite3-0",
+   "version": "3.46.1-7+deb13u2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libsqlite3-0@3.46.1-7%2Bdeb13u2?arch=amd64&distro=debian-13.7&upstream=sqlite3"
+  },
+  {
+   "name": "libssl3t64",
+   "version": "3.5.7-1~deb13u3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3?arch=amd64&distro=debian-13.7&upstream=openssl"
+  },
+  {
+   "name": "libstdc++6",
+   "version": "14.2.0-19",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libstdc%2B%2B6@14.2.0-19?arch=amd64&distro=debian-13.7&upstream=gcc-14"
+  },
+  {
+   "name": "libsystemd0",
+   "version": "257.13-1~deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libsystemd0@257.13-1~deb13u1?arch=amd64&distro=debian-13.7&upstream=systemd"
+  },
+  {
+   "name": "libtinfo6",
+   "version": "6.5+20250216-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libtinfo6@6.5%2B20250216-2?arch=amd64&distro=debian-13.7&upstream=ncurses"
+  },
+  {
+   "name": "libudev1",
+   "version": "257.13-1~deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libudev1@257.13-1~deb13u1?arch=amd64&distro=debian-13.7&upstream=systemd"
+  },
+  {
+   "name": "libuuid1",
+   "version": "2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libuuid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=util-linux"
+  },
+  {
+   "name": "libxxhash0",
+   "version": "0.8.3-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libxxhash0@0.8.3-2?arch=amd64&distro=debian-13.7&upstream=xxhash"
+  },
+  {
+   "name": "libzstd1",
+   "version": "1.5.7+dfsg-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/libzstd1@1.5.7%2Bdfsg-1?arch=amd64&distro=debian-13.7&upstream=libzstd"
+  },
+  {
+   "name": "login",
+   "version": "1:4.16.0-2+really2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/login@1%3A4.16.0-2%2Breally2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+  },
+  {
+   "name": "login.defs",
+   "version": "1:4.17.4-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/login.defs@1%3A4.17.4-2?arch=all&distro=debian-13.7&upstream=shadow"
+  },
+  {
+   "name": "mawk",
+   "version": "1.3.4.20250131-1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/mawk@1.3.4.20250131-1?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "mount",
+   "version": "2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/mount@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=util-linux"
+  },
+  {
+   "name": "ncurses-base",
+   "version": "6.5+20250216-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/ncurses-base@6.5%2B20250216-2?arch=all&distro=debian-13.7&upstream=ncurses"
+  },
+  {
+   "name": "ncurses-bin",
+   "version": "6.5+20250216-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/ncurses-bin@6.5%2B20250216-2?arch=amd64&distro=debian-13.7&upstream=ncurses"
+  },
+  {
+   "name": "netbase",
+   "version": "6.5",
+   "type": "deb",
+   "purl": "pkg:deb/debian/netbase@6.5?arch=all&distro=debian-13.7"
+  },
+  {
+   "name": "openssl",
+   "version": "3.5.7-1~deb13u3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/openssl@3.5.7-1~deb13u3?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "openssl-provider-legacy",
+   "version": "3.5.7-1~deb13u3",
+   "type": "deb",
+   "purl": "pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3?arch=amd64&distro=debian-13.7&upstream=openssl"
+  },
+  {
+   "name": "passwd",
+   "version": "1:4.17.4-2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/passwd@1%3A4.17.4-2?arch=amd64&distro=debian-13.7&upstream=shadow"
+  },
+  {
+   "name": "perl-base",
+   "version": "5.40.1-6+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/perl-base@5.40.1-6%2Bdeb13u1?arch=amd64&distro=debian-13.7&upstream=perl"
+  },
+  {
+   "name": "pip",
+   "version": "25.0.1",
+   "type": "python",
+   "purl": "pkg:pypi/pip@25.0.1"
+  },
+  {
+   "name": "python",
+   "version": "3.12.15",
+   "type": "binary",
+   "purl": "pkg:generic/python@3.12.15"
+  },
+  {
+   "name": "readline-common",
+   "version": "8.2-6",
+   "type": "deb",
+   "purl": "pkg:deb/debian/readline-common@8.2-6?arch=all&distro=debian-13.7&upstream=readline"
+  },
+  {
+   "name": "sed",
+   "version": "4.9-2+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/sed@4.9-2%2Bdeb13u1?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "sqv",
+   "version": "1.3.0-3+b2",
+   "type": "deb",
+   "purl": "pkg:deb/debian/sqv@1.3.0-3%2Bb2?arch=amd64&distro=debian-13.7&upstream=rust-sequoia-sqv%401.3.0-3"
+  },
+  {
+   "name": "sysvinit-utils",
+   "version": "3.14-4",
+   "type": "deb",
+   "purl": "pkg:deb/debian/sysvinit-utils@3.14-4?arch=amd64&distro=debian-13.7&upstream=sysvinit"
+  },
+  {
+   "name": "tar",
+   "version": "1.35+dfsg-3.1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/tar@1.35%2Bdfsg-3.1?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "tzdata",
+   "version": "2026c-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/tzdata@2026c-0%2Bdeb13u1?arch=all&distro=debian-13.7"
+  },
+  {
+   "name": "util-linux",
+   "version": "2.41.5-0+deb13u1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/util-linux@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7"
+  },
+  {
+   "name": "zlib1g",
+   "version": "1:1.3.dfsg+really1.3.1-1+b1",
+   "type": "deb",
+   "purl": "pkg:deb/debian/zlib1g@1%3A1.3.dfsg%2Breally1.3.1-1%2Bb1?arch=amd64&distro=debian-13.7&upstream=zlib%401%3A1.3.dfsg%2Breally1.3.1-1"
+  }
+ ]
+}

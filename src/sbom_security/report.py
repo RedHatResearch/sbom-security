@@ -13,8 +13,11 @@ from typing import Any
 
 from sbom_security.cache import SbomCache
 from sbom_security.endoflife import EndOfLifeClient
+from sbom_security.image import SyftScanner, assess
 from sbom_security.models import (
+    IMAGE,
     NPM,
+    OCI,
     PACKAGE,
     Dependency,
     Finding,
@@ -41,6 +44,7 @@ async def build_report(
     support: EndOfLifeClient,
     truncated: bool = False,
     unresolved: tuple[str, ...] = (),
+    not_assessed: tuple[str, ...] = (),
 ) -> Report:
     """Match dependencies against the vulnerability and support sources.
 
@@ -75,6 +79,7 @@ async def build_report(
         generated_at=now(),
         truncated=truncated,
         unresolved=unresolved,
+        not_assessed=not_assessed,
     )
 
 
@@ -102,6 +107,31 @@ async def report_for_package(
         support=support,
         truncated=resolution.truncated,
         unresolved=resolution.unresolved,
+    )
+
+
+async def report_for_image(
+    reference: str,
+    scanner: SyftScanner,
+    osv: OsvClient,
+    support: EndOfLifeClient,
+    limit: int,
+) -> Report:
+    """Find what a container image contains, and report on it.
+
+    The image is read from its registry and never run. Packages that are not matched
+    against vulnerability data yet, such as the operating system's, are listed as not
+    assessed rather than left out.
+    """
+    inventory = await scanner.inventory(reference)
+    dependencies, not_assessed = assess(inventory.packages)
+    return await build_report(
+        target=Target(name=inventory.reference, ecosystem=OCI, source=IMAGE),
+        dependencies=dependencies[:limit],
+        client=osv,
+        support=support,
+        truncated=len(dependencies) > limit,
+        not_assessed=not_assessed,
     )
 
 

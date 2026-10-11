@@ -27,6 +27,14 @@ alone does not convey.
 | node-semver | https://github.com/podhmo/python-node-semver | MIT | Resolving npm version ranges to published versions. A manifest declares ranges (`^4.18.0`), and npm's range syntax is large enough that implementing it would introduce a class of silently wrong matches. |
 | arq | https://github.com/python-arq/arq | MIT | The work queue. Chosen over Celery because it is built for asyncio, which the rest of this project already uses, and because the work here is uniform and parallel rather than orchestrated. It is confined to `queue.py` and `worker.py`; the work itself has no knowledge of it. |
 
+## Tools
+
+Programs this project runs, rather than imports.
+
+| Tool | Where | License | Used for |
+| ---- | ----- | ------- | -------- |
+| Syft | https://github.com/anchore/syft | Apache-2.0 | Finding the packages inside a container image, read straight from its registry without running it. Reading image layers here would mean reimplementing whiteouts, multi-architecture images, and RPM databases kept in more than one on-disk format. Syft is also the tool Red Hat Trusted Profile Analyzer documents for generating SBOMs from images. Copied into the Docker image from its official image, pinned by digest. |
+
 ## Designs adopted without reusing code
 
 The components identified as reusable during the competitor analysis are written in Go
@@ -34,7 +42,8 @@ or Ruby and cannot be imported into a Python project. Their designs carried over
 instead:
 
 - **Syft and Grype** (Apache-2.0, Go) — separating "produce the inventory" from
-  "analyze the inventory", which is why parsing and matching are distinct here.
+  "analyze the inventory", which is why parsing and matching are distinct here. Syft
+  itself has since been adopted as a tool, for container images.
 - **Dependabot** (MIT, Ruby) — one self-contained parser per ecosystem behind a common
   interface.
 - **OWASP Dependency-Check** (Apache-2.0, Java) — a counter-example: its CPE-based

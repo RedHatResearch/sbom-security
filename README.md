@@ -2,8 +2,9 @@
 
 [![tests](https://github.com/RedHatResearch/sbom-security/actions/workflows/tests.yml/badge.svg)](https://github.com/RedHatResearch/sbom-security/actions/workflows/tests.yml)
 
-Report the dependencies of a package or repository, the known vulnerabilities
-affecting them, and whether each is still supported. Covers npm and Python.
+Report the dependencies of a package, repository or container image, the known
+vulnerabilities affecting them, and whether each is still supported. Covers npm and
+Python.
 
 ## Quick start
 
@@ -31,7 +32,9 @@ Interactive API documentation: **http://127.0.0.1:8010/docs**
 | `GET /reports/github?owner=&repo=` | Scan a public GitHub repository |
 | `POST /reports/npm-lockfile` | Scan a `package-lock.json` sent as the body |
 | `GET /reports/npm-package?name=&version=` | Scan a package and its dependencies |
+| `GET /reports/image?reference=` | Scan a container image, read from its registry |
 | `POST /jobs/npm-package?name=&version=` | Hand a scan to a worker, collect it later |
+| `POST /jobs/image?reference=` | Hand an image scan to a worker, collect it later |
 | `GET /jobs/{id}` | Status and result of submitted work |
 | `GET /queue` | How much work is waiting, and what is running |
 | `GET /health` | Liveness check |
@@ -87,11 +90,36 @@ request may examine. Depth cannot be predicted from outside, but the amount of w
 single request causes can be — and a walk stopped by that ceiling is marked
 `"truncated": true`.
 
+**A container image.** Read straight from its registry by
+[Syft](https://github.com/anchore/syft): the image is never run and no container
+runtime is needed.
+
+```bash
+curl 'http://127.0.0.1:8010/reports/image?reference=bkimminich/juice-shop&limit=3000'
+```
+
+`reference` is written as for `docker pull`. The report names the image by digest as
+well as by the reference asked for, since a tag such as `latest` can point at a
+different image tomorrow.
+
+npm and Python packages found in the image are matched like any other dependency.
+Operating system packages (RPM, deb, apk) are listed under `not_assessed` instead:
+they are versioned by their distribution, and matching them against upstream
+advisories would report fixed packages as vulnerable.
+
+Reading an image takes from seconds to minutes, so for a large one submit it as work
+(`POST /jobs/image?reference=...`). A report on a tag is then reused for up to an hour.
+
+Images are accepted from public registries only — Docker Hub, Quay, GitHub, Google,
+Red Hat, Amazon, Microsoft and Kubernetes — so that a caller cannot make the service
+connect anywhere else. Set `SBOM_IMAGE_REGISTRIES` to a comma-separated list of
+registries to change that.
+
 ### The report
 
 ```json
 {
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "tool": "sbom-security",
   "generated_at": "2026-09-28T09:15:00+00:00",
   "target": {
@@ -146,7 +174,8 @@ single request causes can be — and a walk stopped by that ceiling is marked
     }
   ],
   "truncated": false,
-  "unresolved": []
+  "unresolved": [],
+  "not_assessed": []
 }
 ```
 
@@ -157,6 +186,7 @@ single request causes can be — and a walk stopped by that ceiling is marked
 | `lockfile` | exactly what is installed | *What does this project have?* |
 | `manifest` | declared ranges resolved to the newest match | *What would this project get if it installed today?* |
 | `package` | what a released version declares | *What does this package pull in?* |
+| `image` | what is installed in the image, however it got there | *What does this image contain?* |
 
 This matters when reading a result. A `manifest` scan showing no findings does not mean
 the project is safe — it means the *current* versions of its dependencies are clean.
@@ -165,8 +195,10 @@ project will often find more.
 
 **Completeness is reported, never implied.** `truncated` means a limit stopped the scan
 short. `unresolved` names dependencies that could not be resolved at all — a local path,
-a git dependency, an unpublished package, a `-r other.txt` that was not followed. A scan
-examines 500 dependencies by default; raise it with `&limit=3000`.
+a git dependency, an unpublished package, a `-r other.txt` that was not followed.
+`not_assessed` names what was found but not checked for vulnerabilities, such as the
+operating system packages in an image. A scan examines 500 dependencies by default;
+raise it with `&limit=3000`.
 
 `generated_at` matters because vulnerability data changes daily: an undated report
 cannot be compared against a later one.
@@ -252,7 +284,8 @@ pytest && pylint src/
 ```
 
 Requires Python 3.12 or newer, and outbound network access to reach OSV.dev, deps.dev
-and endoflife.date.
+and endoflife.date. Image reports also need [Syft](https://github.com/anchore/syft) on
+the `PATH`; the Docker image includes it.
 
 ## How it works
 
@@ -265,7 +298,8 @@ version ranges, which are ecosystem-native and therefore precise. The same Packa
 finds the dependency's support policy on endoflife.date, and both are asked at once.
 
 Dependency versions come from lockfiles where one exists, and otherwise from resolved
-graphs published by [deps.dev](https://deps.dev), so nothing has to be installed.
+graphs published by [deps.dev](https://deps.dev), so nothing has to be installed. In a
+container image, Syft finds what is actually installed.
 
 Each version's direct dependencies are cached on disk, one file per version, under
 `.cache` (override with `SBOM_CACHE_DIR`). Those entries never expire: a published

@@ -6,6 +6,7 @@ neither is the point of keeping the queue at the edge.
 """
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,14 @@ import pytest
 
 from sbom_security.cache import ExpiringCache, SbomCache
 from sbom_security.endoflife import EndOfLifeClient
-from sbom_security.jobs import Sources, job_id, report_on_package
+from sbom_security.image import ScanFailed, SyftScanner
+from sbom_security.jobs import (
+    Sources,
+    image_job_id,
+    job_id,
+    report_on_image,
+    report_on_package,
+)
 from sbom_security.osv import OsvClient
 from sbom_security.registry import DepsDevClient
 
@@ -76,6 +84,11 @@ def knows_no_project(_request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json={"result": []})
 
 
+async def no_images(_arguments: Sequence[str], _timeout: float) -> bytes:
+    """Fail as Syft would if no registry could be reached."""
+    raise ScanFailed("no registry is reachable in these tests")
+
+
 class Callbacks:
     """Records what was delivered, and can be told to reject it."""
 
@@ -88,7 +101,11 @@ class Callbacks:
         return httpx.Response(self.response_status)
 
 
-def sources_for(tmp_path: Path, callbacks: Callbacks | None = None) -> Sources:
+def sources_for(
+    tmp_path: Path,
+    callbacks: Callbacks | None = None,
+    scanner: SyftScanner | None = None,
+) -> Sources:
     return Sources(
         cache=SbomCache(tmp_path),
         registry=DepsDevClient(transport=httpx.MockTransport(serve_graph)),
@@ -97,6 +114,7 @@ def sources_for(tmp_path: Path, callbacks: Callbacks | None = None) -> Sources:
             cache=ExpiringCache(tmp_path / "endoflife"),
             transport=httpx.MockTransport(knows_no_project),
         ),
+        scanner=scanner or SyftScanner(run=no_images),
         transport=httpx.MockTransport(callbacks) if callbacks else None,
     )
 
@@ -190,4 +208,28 @@ async def test_an_unknown_package_fails_the_work(tmp_path: Path):
     with pytest.raises(PackageNotFound):
         await report_on_package(
             "nope", "9.9.9", depth=3, sources=sources_for(tmp_path)
+        )
+
+
+def test_an_image_has_its_own_kind_of_identifier():
+    assert image_job_id("docker.io/library/node:22-alpine") == (
+        "image:docker.io/library/node:22-alpine"
+    )
+
+
+async def test_produces_a_report_on_an_image(tmp_path: Path, image_scanner: SyftScanner):
+    report = await report_on_image(
+        "docker.io/library/node:22-alpine",
+        sources=sources_for(tmp_path, scanner=image_scanner),
+    )
+
+    assert report["target"]["source"] == "image"
+    assert report["dependencies"]
+    assert any(purl.startswith("pkg:apk/") for purl in report["not_assessed"])
+
+
+async def test_an_image_that_cannot_be_read_fails_the_work(tmp_path: Path):
+    with pytest.raises(ScanFailed):
+        await report_on_image(
+            "docker.io/library/node:22-alpine", sources=sources_for(tmp_path)
         )
