@@ -1,0 +1,28 @@
+{
+  "package": "i18n",
+  "policy": "https://github.com/mashpie/i18n-node/blob/a3e06a2227d55f21671d940933375671644cd8f2/SECURITY.md",
+  "newest": "0.15.4",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "versions",
+    "rules": [
+      {
+        "versions": "0.15.x",
+        "status": "supported",
+        "until": null
+      },
+      {
+        "versions": "<0.15.0",
+        "status": "unsupported",
+        "until": null
+      }
+    ]
+  },
+  "expected": {
+    "0.15.4": "supported",
+    "0.15.0": "supported",
+    "0.14.2": "eol"
+  },
+  "category": "edge",
+  "notes": "GitHub's template sentence is kept above real values. The values are the project's own, not the template's examples, so they are its policy."
+}

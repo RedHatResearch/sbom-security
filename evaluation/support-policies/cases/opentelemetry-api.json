@@ -1,0 +1,18 @@
+{
+  "package": "@opentelemetry/api",
+  "policy": "https://github.com/open-telemetry/.github/blob/515fe3b0c59b12ba8f95b3af7db5c50fc7775a4f/SECURITY.md",
+  "newest": "1.9.1",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "latest_minor",
+    "rules": []
+  },
+  "expected": {
+    "1.9.1": "supported",
+    "1.9.0": "supported",
+    "1.8.0": "eol",
+    "0.21.0": "eol"
+  },
+  "category": "happy",
+  "notes": "Shared across the organisation: only the last minor version is supported."
+}

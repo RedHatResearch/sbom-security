@@ -239,7 +239,7 @@ def evaluate(dataset: Path, tool: Tool) -> list[CaseResult]:
     return results
 
 
-def summary(results: Iterable[CaseResult]) -> dict[str, Any]:
+def summary(results: Iterable[CaseResult], fields: Iterable[str] = FIELDS) -> dict[str, Any]:
     """Total the results: overall, per field and per category."""
     results = list(results)
     checks = [check for result in results for check in result.checks]
@@ -251,7 +251,7 @@ def summary(results: Iterable[CaseResult]) -> dict[str, Any]:
 
     return {
         "overall": share(checks),
-        "fields": {name: share([c for c in checks if c.field == name]) for name in FIELDS},
+        "fields": {name: share([c for c in checks if c.field == name]) for name in fields},
         "categories": {
             category: share([c for r in results if r.category == category for c in r.checks])
             for category in sorted({result.category for result in results})
@@ -274,45 +274,45 @@ def report(results: list[CaseResult], totals: dict[str, Any]) -> str:
         invented = f"  invented {len(result.invented)}" if result.invented else ""
         lines.append(f"{result.case:16} {result.category:8} {status:>6}  {detail}{invented}")
         lines.extend(f"{'':26}invented {item}" for item in result.invented)
+    return "\n".join(lines + totals_report(totals))
+
+
+def totals_report(totals: dict[str, Any]) -> list[str]:
+    """Lay out the totals: by field, by category and overall."""
 
     def line(label: str, share: dict[str, Any]) -> str:
         if not share["total"]:
             return f"  {label:12} -"
         return f"  {label:12} {share['passed']:>3}/{share['total']:<3} {share['score']:.0%}"
 
-    lines.append("")
-    lines.append("By field")
+    lines = ["", "By field"]
     lines.extend(line(name, share) for name, share in totals["fields"].items())
     lines.append("By category")
     lines.extend(line(name, share) for name, share in totals["categories"].items())
     lines.append("")
     lines.append(line("Overall", totals["overall"]).strip())
     lines.append(f"Invented: {totals['invented']}   No answer: {totals['failed_to_answer']}")
-    return "\n".join(lines)
+    return lines
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", maxsplit=1)[0])
-    tool = parser.add_mutually_exclusive_group(required=True)
-    tool.add_argument("--command", help="run this, giving it the record on standard input")
-    tool.add_argument("--url", help="post the record to this URL")
-    parser.add_argument("--dataset", type=Path, default=DATASET, help="the dataset to use")
-    parser.add_argument("--timeout", type=float, default=TIMEOUT, help="seconds per case")
+def add_result_options(parser: argparse.ArgumentParser) -> None:
+    """Add the options every measurement takes for what to do with its results."""
     parser.add_argument("--report", type=Path, help="also write the full results here, as JSON")
     parser.add_argument(
         "--min-score", type=float, help="exit with 1 if the overall score is below this, 0 to 1"
     )
-    options = parser.parse_args(argv)
 
-    run = (
-        command_tool(options.command, options.timeout)
-        if options.command
-        else url_tool(options.url, options.timeout)
-    )
-    results = evaluate(options.dataset, run)
-    totals = summary(results)
-    print(report(results, totals))
 
+def conclude(
+    options: argparse.Namespace,
+    results: list[CaseResult],
+    totals: dict[str, Any],
+    **about: Any,
+) -> int:
+    """Write the results where the options ask, and return the exit status they call for.
+
+    ``about`` is added to the written results, to say what was measured.
+    """
     if options.report:
         details = [
             {
@@ -324,12 +324,32 @@ def main(argv: list[str] | None = None) -> int:
             }
             for result in results
         ]
-        options.report.write_text(
-            json.dumps({"summary": totals, "cases": details}, indent=2) + "\n", encoding="utf-8"
-        )
+        document = {**about, "summary": totals, "cases": details}
+        options.report.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
     overall = totals["overall"]["score"] or 0
     return 1 if options.min_score is not None and overall < options.min_score else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", maxsplit=1)[0])
+    tool = parser.add_mutually_exclusive_group(required=True)
+    tool.add_argument("--command", help="run this, giving it the record on standard input")
+    tool.add_argument("--url", help="post the record to this URL")
+    parser.add_argument("--dataset", type=Path, default=DATASET, help="the dataset to use")
+    parser.add_argument("--timeout", type=float, default=TIMEOUT, help="seconds per case")
+    add_result_options(parser)
+    options = parser.parse_args(argv)
+
+    run = (
+        command_tool(options.command, options.timeout)
+        if options.command
+        else url_tool(options.url, options.timeout)
+    )
+    results = evaluate(options.dataset, run)
+    totals = summary(results)
+    print(report(results, totals))
+    return conclude(options, results, totals)
 
 
 if __name__ == "__main__":

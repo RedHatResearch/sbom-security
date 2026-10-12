@@ -45,7 +45,7 @@ Hosted services this project calls, beyond the data sources above.
 
 | Service | Where | Terms | Used for |
 | ------- | ----- | ----- | -------- |
-| Claude | https://www.anthropic.com/api | Anthropic's commercial terms | Reading which versions a security policy supports. Policies are prose with no common structure, which rules out a parser. Opus 5.5 at low effort read all 13 policies of a hand-checked sample correctly, where a smaller model misread one. Only used where a key is configured. |
+| Claude | https://www.anthropic.com/api | Anthropic's commercial terms | Reading which versions a security policy supports. Policies are prose with no common structure, which rules out a parser. Measured in `evaluation/` on 15 policies with known answers, Opus 5.5 at low effort passes 63 of 65 checks and invents no support. Only used where a key is configured. |
 
 ## Designs adopted without reusing code
 

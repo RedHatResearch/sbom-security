@@ -1,0 +1,33 @@
+{
+  "package": "@babel/traverse",
+  "policy": "https://github.com/babel/babel/blob/1fb0b77139823d3e6ef8f0f12fb0e6f26083dee8/SECURITY.md",
+  "newest": "8.0.7",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "versions",
+    "rules": [
+      {
+        "versions": "8.x",
+        "status": "supported",
+        "until": null
+      },
+      {
+        "versions": "7.x",
+        "status": "security_only",
+        "until": "2027-06-30"
+      },
+      {
+        "versions": "6.x",
+        "status": "unsupported",
+        "until": null
+      }
+    ]
+  },
+  "expected": {
+    "8.0.7": "supported",
+    "7.29.10": "limited until 2027-06-30",
+    "7.15.0": "limited until 2027-06-30"
+  },
+  "category": "edge",
+  "notes": "The policy of the monorepo the package is published from. An hourglass with a date marks 7.x as winding down, which is limited support ending on that date. The note that only the last minor of a line is patched is not a rule of its own: support is reported per line, and a 7.15 user reaches the fix within 7.x."
+}

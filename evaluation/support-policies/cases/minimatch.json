@@ -1,0 +1,17 @@
+{
+  "package": "minimatch",
+  "policy": "https://github.com/isaacs/.github/blob/f3ec95b9c70c6e0733dd26dd7ad0cd111a78d618/SECURITY.md",
+  "newest": "10.2.6",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "latest_release",
+    "rules": []
+  },
+  "expected": {
+    "10.2.6": "supported",
+    "10.2.5": "eol",
+    "9.0.9": "eol"
+  },
+  "category": "happy",
+  "notes": "Shared by the owner across all their repositories: only the most recent version is supported. Backports that may happen are not a promise."
+}

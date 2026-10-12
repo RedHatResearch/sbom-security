@@ -1,0 +1,35 @@
+{
+  "package": "ethers",
+  "policy": "https://github.com/ethers-io/ethers.js/blob/faa556c1e5f727105ec6cdc5ed25de30095108d6/SECURITY.md",
+  "newest": "6.17.0",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "versions",
+    "rules": [
+      {
+        "versions": "6.x",
+        "status": "supported",
+        "until": null
+      },
+      {
+        "versions": "5.x",
+        "status": "security_only",
+        "until": null
+      },
+      {
+        "versions": "<5",
+        "status": "unsupported",
+        "until": null
+      }
+    ]
+  },
+  "expected": {
+    "6.17.0": "supported",
+    "6.0.0": "supported",
+    "5.8.0": "limited",
+    "4.0.49": "eol",
+    "2.2.6": "eol"
+  },
+  "category": "edge",
+  "notes": "Rows are written 6.0.x and 5.0.x, but each gives the first release of a major line, and the text says the effort goes to the latest major. A row stands for its line: read literally, 6.0.x would leave 6.17.0, the newest release, without support."
+}

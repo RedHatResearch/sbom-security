@@ -1,0 +1,28 @@
+{
+  "package": "@noble/hashes",
+  "policy": "https://github.com/paulmillr/noble-hashes/blob/663c2aeeffc308ac0cded59bd32f7c212adacfc2/SECURITY.md",
+  "newest": "2.4.0",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "versions",
+    "rules": [
+      {
+        "versions": ">=2.4.0",
+        "status": "supported",
+        "until": null
+      },
+      {
+        "versions": "<2.4.0",
+        "status": "unsupported",
+        "until": null
+      }
+    ]
+  },
+  "expected": {
+    "2.4.0": "supported",
+    "2.0.0": "eol",
+    "1.8.0": "eol"
+  },
+  "category": "happy",
+  "notes": "Ranges rather than lines."
+}

@@ -67,3 +67,50 @@ the overall score; Package URL and versions are where extraction is hard.
 
 Few records name the package ecosystem outright, so the Package URL is mostly missed,
 and most keep their versions in prose. That is the gap a real extractor has to close.
+
+## Support policies
+
+Where endoflife.date has no lifecycle, the service has Claude read which versions a
+project supports from its security policy. Whether that reading can be trusted is
+measured against policies with known answers.
+
+- `support-policies/` holds the cases: policies linked at a commit, each with what a
+  report should say about some of the package's versions. Its README describes the
+  format and how the answers were decided.
+- `policies.py` reads each policy the way the service does and judges each version the
+  way a report does, so what is compared is what a report would carry, not how the
+  rules happen to be written.
+
+```bash
+ANTHROPIC_API_KEY=... python3 evaluation/policies.py
+ANTHROPIC_API_KEY=... python3 evaluation/policies.py --model claude-haiku-5-5
+```
+
+Unlike `evaluate.py` it runs the service's own code, so it needs the package installed.
+`--report` and `--min-score` work as above, and the totals are laid out the same way. A
+run with the default model costs about 15 cents.
+
+### How answers are scored
+
+- The kind of policy is compared with the case's reading: explicit versions, a rule
+  relative to the newest release, or nothing for this package.
+- Each version the case lists is compared by what a report would give it: its status,
+  and the date support ends where there is one.
+- A status given to a version the policy says nothing about is also counted apart as
+  **invented**. A missing status leaves a gap in a report; an invented one tells its
+  reader something false.
+
+### Results
+
+On the first version of the dataset, 15 cases:
+
+| Model | kind | versions | Overall | Invented |
+| ----- | ---- | -------- | ------- | -------- |
+| `claude-opus-5-5`, the default | 15/15 | 48/50 | 63/65, 97% | 0 |
+| `claude-sonnet-5-5` | 15/15 | 48/50 | 63/65, 97% | 0 |
+| `claude-haiku-5-5` | 14/15 | 47/50 | 61/65, 94% | 0 |
+
+Two runs of the default gave the same result. Opus and Sonnet both copy ethers's
+`6.0.x` and `5.0.x` rows literally, so its newest release gets no status. Haiku reads
+those rows as lines, but decides that Babel's policy does not cover `@babel/traverse`,
+which is published from Babel's repository. No model invented support.

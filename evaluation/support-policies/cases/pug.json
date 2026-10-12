@@ -1,0 +1,28 @@
+{
+  "package": "pug",
+  "policy": "https://github.com/pugjs/pug/blob/60b1b15b79e88166f5b3113d2b07857819c37493/SECURITY.md",
+  "newest": "3.0.4",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "versions",
+    "rules": [
+      {
+        "versions": "^3.0.1",
+        "status": "supported",
+        "until": null
+      },
+      {
+        "versions": "<3.0.1",
+        "status": "unsupported",
+        "until": null
+      }
+    ]
+  },
+  "expected": {
+    "3.0.4": "supported",
+    "3.0.0": "eol",
+    "2.0.4": "eol"
+  },
+  "category": "happy",
+  "notes": "A caret range: 3.0.0 is in the 3.x line but not supported."
+}

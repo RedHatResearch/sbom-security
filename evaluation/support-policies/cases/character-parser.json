@@ -1,0 +1,16 @@
+{
+  "package": "character-parser",
+  "policy": "https://github.com/ForbesLindesay/character-parser/blob/5ea989205e99d064dd04e73bd3ff64c17b8a6104/SECURITY.md",
+  "newest": "4.0.0",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "none",
+    "rules": []
+  },
+  "expected": {
+    "4.0.0": null,
+    "2.2.0": null
+  },
+  "category": "unhappy",
+  "notes": "Only says where to report a vulnerability, so it is never sent to the model."
+}

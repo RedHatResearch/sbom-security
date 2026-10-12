@@ -1,0 +1,34 @@
+{
+  "package": "handlebars",
+  "policy": "https://github.com/handlebars-lang/handlebars.js/blob/9413ea99cedc984e82f96a864c13bda59794be9a/SECURITY.md",
+  "newest": "4.7.10",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "versions",
+    "rules": [
+      {
+        "versions": "5.0.x",
+        "status": "supported",
+        "until": null
+      },
+      {
+        "versions": "4.7.x",
+        "status": "supported",
+        "until": null
+      },
+      {
+        "versions": "<4.7",
+        "status": "unsupported",
+        "until": null
+      }
+    ]
+  },
+  "expected": {
+    "4.7.10": "supported",
+    "4.7.0": "supported",
+    "4.6.0": "eol",
+    "3.0.8": "eol"
+  },
+  "category": "happy",
+  "notes": "Minor lines, and a range for everything older."
+}

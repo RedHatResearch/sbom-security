@@ -250,7 +250,9 @@ model. The model only reads what the policy states, either which versions it cov
 a rule relative to the newest release (the latest release, minor or major line). Where a
 dependency falls is decided here, not by the model: ranges with npm's own semantics, and
 relative rules against the newest version on the registry. `line` is then the range the
-policy names, such as `>= 5`, or the line the rule refers to, such as `3.2`.
+policy names, such as `>= 5`, or the line the rule refers to, such as `3.2`. On 15
+policies with known answers, 63 of 65 checks pass and no support is invented; see
+[`evaluation/`](evaluation/README.md#support-policies).
 
 Reading a policy takes seconds, so it never happens while a report is produced. A
 report hands the packages it could not answer to the queue, a worker reads their

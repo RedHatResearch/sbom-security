@@ -1,0 +1,38 @@
+{
+  "package": "swagger-ui",
+  "policy": "https://github.com/swagger-api/swagger-ui/blob/ee335f238e2e44350c19f5969a9626ec849eeda4/SECURITY.md",
+  "newest": "5.33.2",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "versions",
+    "rules": [
+      {
+        "versions": "5.x",
+        "status": "supported",
+        "until": null
+      },
+      {
+        "versions": "4.x",
+        "status": "unsupported",
+        "until": null
+      },
+      {
+        "versions": "3.x",
+        "status": "unsupported",
+        "until": null
+      },
+      {
+        "versions": "2.x",
+        "status": "unsupported",
+        "until": null
+      }
+    ]
+  },
+  "expected": {
+    "5.33.2": "supported",
+    "4.19.1": "eol",
+    "3.52.5": "eol"
+  },
+  "category": "happy",
+  "notes": "End-of-life months are given for old lines; whether they are read as dates or not, those lines are unsupported."
+}

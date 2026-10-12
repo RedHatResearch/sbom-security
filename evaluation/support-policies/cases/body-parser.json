@@ -1,0 +1,16 @@
+{
+  "package": "body-parser",
+  "policy": "https://github.com/expressjs/.github/blob/a0e05d5e690aa80f92c61ce2d72f8de42fc93dfe/SECURITY.md",
+  "newest": "2.3.0",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "none",
+    "rules": []
+  },
+  "expected": {
+    "2.3.0": null,
+    "1.20.3": null
+  },
+  "category": "unhappy",
+  "notes": "The organisation's shared policy promises fixes for all releases still under maintenance, without saying which those are."
+}

@@ -1,0 +1,16 @@
+{
+  "package": "esprima",
+  "policy": "https://github.com/jquery/.github/blob/d659e27ec4c55bff407e6f0f96e8ac6b7f8a9021/SECURITY.md",
+  "newest": "4.0.1",
+  "date": "2026-10-12",
+  "reading": {
+    "kind": "none",
+    "rules": []
+  },
+  "expected": {
+    "4.0.1": null,
+    "3.1.3": null
+  },
+  "category": "unhappy",
+  "notes": "The organisation's shared policy states supported versions of jQuery and jQuery UI. esprima belongs to the organisation, but the text says nothing about it."
+}

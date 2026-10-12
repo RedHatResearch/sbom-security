@@ -326,6 +326,18 @@ def mentions_a_policy(text: str) -> bool:
     return bool(_MENTIONS_SUPPORT.search(text) and _MENTIONS_VERSIONS.search(text))
 
 
+async def read_policy(reader: ClaudeReader, package: str, text: str) -> Policy | None:
+    """Have a policy text read for one package, unless it cannot state anything.
+
+    A text too long to be a policy, or one that mentions neither support nor versions,
+    is not sent to the model, and None is returned. The service and its measurement
+    both read policies through here, so that what is measured is what runs.
+    """
+    if len(text) > MAX_TEXT or not mentions_a_policy(text):
+        return None
+    return await reader.read(package, text)
+
+
 @dataclass(frozen=True)
 class PolicyAgent:
     """Finds and reads support policies, and answers from what it has found.
@@ -430,12 +442,11 @@ class PolicyAgent:
 
         repository = await self.finder.repository(client, name, ecosystem)
         found = await self._policy_text(client, repository, now) if repository else None
-        if found is None or len(found.text) > MAX_TEXT or not mentions_a_policy(found.text):
+        assert self.reader is not None
+        policy = await read_policy(self.reader, name, found.text) if found else None
+        if found is None or policy is None:
             self.cache.put(key, Stored({"policy": None, "source": None}, now))
             return
-
-        assert self.reader is not None
-        policy = await self.reader.read(name, found.text)
         self.cache.put(key, Stored({"policy": asdict(policy), "source": found.source}, now))
 
     async def _policy_text(
