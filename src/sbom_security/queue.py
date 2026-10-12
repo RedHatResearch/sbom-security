@@ -5,7 +5,10 @@ This is the only module that knows the queue is arq. Everything it submits lives
 the queue means rewriting this file and nothing else.
 """
 
+import hashlib
+import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from arq import create_pool
@@ -28,6 +31,7 @@ REDIS_DSN = os.environ.get("REDIS_DSN", "redis://localhost:6379")
 
 TASK = "report_on_package"
 IMAGE_TASK = "report_on_image"
+DISCOVERY_TASK = "discover_support"
 
 # arq marks a job as taken by writing this key. Mirrored here rather than imported so
 # that the dependency stays to arq's public interface.
@@ -84,6 +88,20 @@ class ArqQueue:
         identifier = image_job_id(reference)
         await self.redis.enqueue_job(
             IMAGE_TASK, reference, callback_url, _job_id=identifier
+        )
+        return identifier
+
+    async def submit_discovery(self, packages: Sequence[Sequence[str]]) -> str:
+        """Queue a lookup of support policies, unless the same one is queued already.
+
+        The identifier is built from the packages themselves, so reports asking about
+        the same packages share one lookup.
+        """
+        ordered = sorted({tuple(package) for package in packages})
+        digest = hashlib.sha256(json.dumps(ordered).encode()).hexdigest()[:16]
+        identifier = f"support:{digest}"
+        await self.redis.enqueue_job(
+            DISCOVERY_TASK, [list(package) for package in ordered], _job_id=identifier
         )
         return identifier
 

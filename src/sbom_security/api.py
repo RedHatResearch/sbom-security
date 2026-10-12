@@ -44,6 +44,7 @@ from sbom_security.models import (
 )
 from sbom_security.npm import NpmRegistry
 from sbom_security.osv import OsvClient
+from sbom_security.policy import PolicyAgent
 from sbom_security.purl import to_dependencies
 from sbom_security.pypi import PyPiIndex
 from sbom_security.queue import ArqQueue, connect
@@ -51,6 +52,7 @@ from sbom_security.registry import DepsDevClient, PackageNotFound
 from sbom_security.report import build_report, report_for_image, report_for_package
 from sbom_security.requirements import parse_requirements_txt
 from sbom_security.resolver import DEFAULT_DEPTH, resolve_declared
+from sbom_security.support import SupportSources
 
 # Large projects pin thousands of packages, and each distinct advisory costs another
 # request to OSV. The default keeps an unattended call bounded; raise it deliberately.
@@ -145,9 +147,19 @@ def get_cache() -> SbomCache:
     return SbomCache(CACHE_DIRECTORY)
 
 
-def get_support_source() -> EndOfLifeClient:
-    """Provide the support-lifecycle source, so tests can substitute their own."""
-    return EndOfLifeClient(cache=ExpiringCache(CACHE_DIRECTORY / "endoflife"))
+def get_support_source(request: Request) -> SupportSources:
+    """Provide the support sources, so tests can substitute their own.
+
+    Where a queue is running, what a report cannot answer yet is handed to it, so that
+    a worker looks up those projects' security policies once the report is done. The
+    API itself never runs the model.
+    """
+    redis = getattr(request.app.state, "redis", None)
+    return SupportSources(
+        published=EndOfLifeClient(cache=ExpiringCache(CACHE_DIRECTORY / "endoflife")),
+        extracted=PolicyAgent(cache=ExpiringCache(CACHE_DIRECTORY / "policies")),
+        pending=ArqQueue(redis).submit_discovery if redis is not None else None,
+    )
 
 
 def get_scanner() -> SyftScanner:
@@ -169,7 +181,7 @@ class Sources:
     npm: NpmRegistry
     pypi: PyPiIndex
     cache: SbomCache
-    support: EndOfLifeClient
+    support: SupportSources
     scanner: SyftScanner
 
 
@@ -180,7 +192,7 @@ def get_sources(
     npm: Annotated[NpmRegistry, Depends(get_npm_registry)],
     pypi: Annotated[PyPiIndex, Depends(get_pypi_index)],
     cache: Annotated[SbomCache, Depends(get_cache)],
-    support: Annotated[EndOfLifeClient, Depends(get_support_source)],
+    support: Annotated[SupportSources, Depends(get_support_source)],
     scanner: Annotated[SyftScanner, Depends(get_scanner)],
 ) -> Sources:
     return Sources(

@@ -18,6 +18,7 @@ from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.image import ScanFailed, SyftScanner
 from sbom_security.jobs import (
     Sources,
+    discover_support,
     image_job_id,
     job_id,
     report_on_image,
@@ -233,3 +234,22 @@ async def test_an_image_that_cannot_be_read_fails_the_work(tmp_path: Path):
         await report_on_image(
             "docker.io/library/node:22-alpine", sources=sources_for(tmp_path)
         )
+
+
+async def test_looks_up_support_policies_as_submitted_work(tmp_path: Path):
+    class Lookups:
+        """Records the packages handed over to be looked up."""
+
+        def __init__(self):
+            self.looked_up: list[list[str]] = []
+
+        async def discover(self, packages):
+            self.looked_up.extend(packages)
+
+    lookups = Lookups()
+    sources = sources_for(tmp_path)
+    sources = Sources(**{**vars(sources), "support": lookups})
+
+    await discover_support([["lodash", "npm"]], sources=sources)
+
+    assert lookups.looked_up == [["lodash", "npm"]]

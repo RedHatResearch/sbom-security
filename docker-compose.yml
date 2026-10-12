@@ -37,6 +37,10 @@ services:
     environment:
       REDIS_DSN: redis://redis:6379
       SBOM_CACHE_DIR: /cache
+      # Reading projects' security policies needs a model. The key comes from the shell
+      # that starts the stack and is never written into this file; without it, support
+      # comes from endoflife.date alone.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - cache:/cache
     depends_on:

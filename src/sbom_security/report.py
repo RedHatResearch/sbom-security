@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sbom_security.cache import SbomCache
-from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.image import SyftScanner, assess
 from sbom_security.models import (
     IMAGE,
@@ -30,6 +29,7 @@ from sbom_security.osv import OsvClient
 from sbom_security.purl import to_dependencies
 from sbom_security.registry import DepsDevClient
 from sbom_security.resolver import DEFAULT_DEPTH, resolve_tree
+from sbom_security.support import SupportFinder
 
 
 def now() -> str:
@@ -41,7 +41,7 @@ async def build_report(
     target: Target,
     dependencies: Sequence[Dependency],
     client: OsvClient,
-    support: EndOfLifeClient,
+    support: SupportFinder,
     truncated: bool = False,
     unresolved: tuple[str, ...] = (),
     not_assessed: tuple[str, ...] = (),
@@ -89,7 +89,7 @@ async def report_for_package(
     cache: SbomCache,
     registry: DepsDevClient,
     osv: OsvClient,
-    support: EndOfLifeClient,
+    support: SupportFinder,
     depth: int = DEFAULT_DEPTH,
 ) -> Report:
     """Resolve one package's dependencies and report on what they carry.
@@ -114,7 +114,7 @@ async def report_for_image(
     reference: str,
     scanner: SyftScanner,
     osv: OsvClient,
-    support: EndOfLifeClient,
+    support: SupportFinder,
     limit: int,
 ) -> Report:
     """Find what a container image contains, and report on it.

@@ -211,8 +211,9 @@ cannot be compared against a later one.
 Each dependency says whether its release line still receives fixes, where its project
 publishes a support policy. The data comes from [endoflife.date](https://endoflife.date),
 which tracks several hundred products. For npm and PyPI that includes Express, React,
-Angular, Vue, Next.js, ESLint, Django and NumPy, among others. A dependency it does not
-cover has `"support": null`: no policy is known, which is not the same as no support.
+Angular, Vue, Next.js, ESLint, Django and NumPy, among others. Where it has nothing, the
+project's own security policy can stand in, as described below. A dependency neither
+covers has `"support": null`: no policy is known, which is not the same as no support.
 Packages a Linux distribution ships always have `null`: the distribution supports them
 for as long as it supports the release, whatever the upstream project does.
 
@@ -234,6 +235,32 @@ reached the last copy is used rather than none.
 
 These statuses correspond to the SPDX 3.0 `supportLevel` vocabulary: `active` and
 `supported` to `support`, `limited` to `limitedSupport`, and `eol` to `endOfSupport`.
+
+#### From security policies
+
+Most packages are not on endoflife.date, but some say in their `SECURITY.md` which
+versions still receive security fixes. Where the worker has a model configured, those
+policies are read by Claude and what they state is reported with `"basis": "extracted"`,
+`source` pointing at the file. A lifecycle on endoflife.date always takes precedence.
+
+The policy is found through the repository the package's registry names: `SECURITY.md`,
+`.github/SECURITY.md` or `docs/SECURITY.md`, and failing those the policy its owner
+shares from a `.github` repository. A file that mentions no versions is not sent to the
+model. The model only reads what the policy states, either which versions it covers or
+a rule relative to the newest release (the latest release, minor or major line). Where a
+dependency falls is decided here, not by the model: ranges with npm's own semantics, and
+relative rules against the newest version on the registry. `line` is then the range the
+policy names, such as `>= 5`, or the line the rule refers to, such as `3.2`.
+
+Reading a policy takes seconds, so it never happens while a report is produced. A
+report hands the packages it could not answer to the queue, a worker reads their
+policies afterwards, and the next report includes what was found. What was read is kept
+under `.cache/policies` for 30 days, including that a project states no supported
+versions, so each project is read at most once a month.
+
+Expect it to fill gaps rather than close them: in a sample of 526 npm and PyPI
+repositories, about one in ten stated which versions it supports. Only files named
+exactly `SECURITY.md` are found; a repository that names it `Security.md` is missed.
 
 ## Submitting work instead of waiting
 
@@ -279,6 +306,18 @@ docker run --rm -p 8000:8000 sbom-security
 Without Redis the scan endpoints work as normal; only the submitted-work endpoints
 report themselves unavailable.
 
+**Reading security policies** needs an [Anthropic API](https://console.anthropic.com)
+key on the worker. Export it in the shell that starts the stack; `docker-compose.yml`
+passes it through without storing it:
+
+```bash
+export ANTHROPIC_API_KEY=...
+docker compose up -d
+```
+
+Without it, support comes from endoflife.date alone. `SBOM_POLICY_MODEL` chooses another
+model than the default `claude-opus-5-5`. Reading one policy costs about a cent.
+
 **From source**, for development:
 
 ```bash
@@ -289,7 +328,8 @@ pytest && pylint src/ evaluation/
 ```
 
 Requires Python 3.12 or newer, and outbound network access to reach OSV.dev, deps.dev
-and endoflife.date. Image reports also need [Syft](https://github.com/anchore/syft) on
+and endoflife.date; reading security policies also reaches the npm registry, PyPI,
+GitHub and Anthropic's API. Image reports also need [Syft](https://github.com/anchore/syft) on
 the `PATH`; the Docker image includes it.
 
 ## How it works
@@ -301,6 +341,8 @@ input  ->  resolve dependencies  ->  normalize to PURL  ->  OSV.dev + endoflife.
 Matching is done on Package URLs (`pkg:npm/express@4.18.0`) against the OSV schema's
 version ranges, which are ecosystem-native and therefore precise. The same Package URL
 finds the dependency's support policy on endoflife.date, and both are asked at once.
+Where endoflife.date has none, a worker reads the project's security policy after the
+report, for the next one to include.
 
 Dependency versions come from lockfiles where one exists, and otherwise from resolved
 graphs published by [deps.dev](https://deps.dev), so nothing has to be installed. In a
@@ -310,7 +352,8 @@ Each version's direct dependencies are cached on disk, one file per version, und
 `.cache` (override with `SBOM_CACHE_DIR`). Those entries never expire: a published
 version cannot change what it depends on, so a package depended on by fifty others is
 resolved once rather than fifty times. Support data changes rarely but does change, so
-it is kept under `.cache/endoflife` for 30 days. Vulnerability data is deliberately not
+it is kept under `.cache/endoflife` for 30 days, and what security policies state under
+`.cache/policies` for as long. Vulnerability data is deliberately not
 cached — a package that is clean today can be vulnerable tomorrow.
 
 ## Measuring CVE extraction

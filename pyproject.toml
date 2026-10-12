@@ -17,6 +17,7 @@ dependencies = [
     "arq",
     "node-semver",
     "packaging",
+    "anthropic",
 ]
 
 [project.optional-dependencies]

@@ -82,8 +82,10 @@ LIMITED = "limited"
 SUPPORTED = "supported"
 END_OF_LIFE = "eol"
 
-# How a support status was arrived at.
+# How a support status was arrived at: published by the project in a lifecycle, or
+# extracted by a model from the project's own security policy.
 PUBLISHED = "published"
+EXTRACTED = "extracted"
 
 
 @dataclass(frozen=True)
@@ -106,8 +108,10 @@ class Support:
     report is produced rather than when the data was retrieved, so data kept for a
     while still gives the right answer.
 
-    ``basis`` says how the answer was arrived at; ``published`` means the project
-    publishes it. ``source`` is where to check it, and ``retrieved_at`` how old it is.
+    ``basis`` says how the answer was arrived at: ``published`` means the project
+    publishes a lifecycle, ``extracted`` that a model read it from the project's
+    security policy. ``source`` is where to check it, and ``retrieved_at`` how old it
+    is.
     """
 
     line: str

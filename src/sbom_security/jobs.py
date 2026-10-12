@@ -17,10 +17,12 @@ from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.image import SyftScanner, registries_from_environment
 from sbom_security.models import PackageRef, Report
 from sbom_security.osv import OsvClient
+from sbom_security.policy import PolicyAgent, reader_from_environment
 from sbom_security.purl import to_purl
 from sbom_security.registry import DepsDevClient
 from sbom_security.report import as_dict, report_for_image, report_for_package
 from sbom_security.resolver import MAX_PACKAGES
+from sbom_security.support import Pending, SupportSources
 
 CACHE_DIRECTORY = Path(os.environ.get("SBOM_CACHE_DIR", ".cache"))
 
@@ -68,17 +70,25 @@ class Sources:
     cache: SbomCache
     registry: DepsDevClient
     osv: OsvClient
-    support: EndOfLifeClient
+    support: SupportSources
     scanner: SyftScanner
     transport: httpx.AsyncBaseTransport | None = None
 
     @classmethod
-    def default(cls) -> "Sources":
+    def default(cls, pending: Pending | None = None) -> "Sources":
+        """Return the real sources. ``pending`` receives what support lookups remain."""
         return cls(
             cache=SbomCache(CACHE_DIRECTORY),
             registry=DepsDevClient(),
             osv=OsvClient(),
-            support=EndOfLifeClient(cache=ExpiringCache(CACHE_DIRECTORY / "endoflife")),
+            support=SupportSources(
+                published=EndOfLifeClient(cache=ExpiringCache(CACHE_DIRECTORY / "endoflife")),
+                extracted=PolicyAgent(
+                    cache=ExpiringCache(CACHE_DIRECTORY / "policies"),
+                    reader=reader_from_environment(),
+                ),
+                pending=pending,
+            ),
             scanner=SyftScanner(registries=registries_from_environment()),
         )
 
@@ -149,6 +159,18 @@ async def report_on_image(
         limit=MAX_PACKAGES,
     )
     return await _deliver(report, callback_url, sources)
+
+
+async def discover_support(
+    packages: list[list[str]], sources: Sources | None = None
+) -> None:
+    """Look up the security policies of packages whose support no report could give.
+
+    ``packages`` are name and ecosystem pairs. Without a configured model this does
+    nothing, and reports carry on with what is published.
+    """
+    sources = sources or Sources.default()
+    await sources.support.discover(packages)
 
 
 async def _deliver(
