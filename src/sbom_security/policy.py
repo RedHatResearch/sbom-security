@@ -48,9 +48,16 @@ PYPI_INDEX = "https://pypi.org"
 RAW_GITHUB = "https://raw.githubusercontent.com"
 GITHUB = "https://github.com"
 
-# Where GitHub looks for a security policy, in the order it looks. An organisation's
-# shared policy lives in the same places in its repository named ".github".
-POLICY_FILES = ("SECURITY.md", ".github/SECURITY.md", "docs/SECURITY.md")
+# Where GitHub looks for a security policy, in the order it looks. GitHub ignores the
+# case of the name, but a file is fetched by its exact name, so both spellings in use
+# are tried: of the 297 policies found among Juice Shop's dependencies, 66 are named
+# security.md. An organisation's shared policy lives in the same places in its
+# repository named ".github".
+POLICY_FILES = tuple(
+    f"{directory}{name}"
+    for directory in ("", ".github/", "docs/")
+    for name in ("SECURITY.md", "security.md")
+)
 SHARED_REPOSITORY = ".github"
 
 # A text mentioning neither support nor versions is instructions for reporting a

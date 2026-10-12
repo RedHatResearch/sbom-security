@@ -261,8 +261,10 @@ under `.cache/policies` for 30 days, including that a project states no supporte
 versions, so each project is read at most once a month.
 
 Expect it to fill gaps rather than close them: in a sample of 526 npm and PyPI
-repositories, about one in ten stated which versions it supports. Only files named
-exactly `SECURITY.md` are found; a repository that names it `Security.md` is missed.
+repositories, about one in ten stated which versions it supports. The file is looked
+for as `SECURITY.md` and as `security.md`, the two spellings in use. A repository that
+has moved to another owner is looked up under the owner its package still names, so a
+policy only the new owner shares is missed.
 
 ## Submitting work instead of waiting
 

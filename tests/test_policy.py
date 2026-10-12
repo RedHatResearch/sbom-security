@@ -76,6 +76,7 @@ FILES = {
     "lodash/lodash/HEAD/SECURITY.md": LODASH_POLICY,
     "isaacs/.github/HEAD/SECURITY.md": SHARED_POLICY,
     "someone/reporting/HEAD/.github/SECURITY.md": REPORTING_ONLY,
+    "someone/lowercase/HEAD/.github/security.md": SHARED_POLICY,
 }
 
 
@@ -158,6 +159,17 @@ async def test_reads_a_repositorys_own_policy(tmp_path: Path):
     await agent(tmp_path, world, reader).discover([("lodash", "npm")])
 
     assert reader.read_for == ["lodash"]
+
+
+async def test_finds_a_policy_spelled_in_lower_case():
+    world = World()
+    finder = world.finder()
+
+    async with finder.client() as client:
+        found = await finder.policy_file(client, "someone", "lowercase")
+
+    assert found is not None
+    assert found.source == "https://github.com/someone/lowercase/blob/HEAD/.github/security.md"
 
 
 async def test_falls_back_on_the_policy_an_organisation_shares(tmp_path: Path):
