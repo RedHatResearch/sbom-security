@@ -15,6 +15,9 @@ measuring before a tool for it can be trusted.
   standard library, so it runs wherever the tool does.
 - `fields_only.py` is a baseline that copies the structured fields and reads no text.
 
+New to it? [`cve-extraction/EXAMPLE.md`](cve-extraction/EXAMPLE.md) walks through one
+case, connecting a tool, and reading the result.
+
 ### The tool under test
 
 It can be written in anything, and is reached one of two ways:
@@ -30,6 +33,8 @@ The answer has the shape of `expected.json`, without `category` and `notes`.
 python3 evaluation/evaluate.py --command "python3 evaluation/fields_only.py"
 python3 evaluation/evaluate.py --url http://localhost:8000/extract
 ```
+
+`python3 evaluation/fields_only.py --serve 8000` runs the baseline as such a service.
 
 `--report results.json` also writes every check, case by case. `--min-score 0.8` exits
 with 1 below that score, for use in CI. `--timeout` bounds each case, 60 seconds by

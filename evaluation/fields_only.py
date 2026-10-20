@@ -5,11 +5,19 @@ It shows what the dataset measures. Records whose structured fields are filled i
 come out right, and records that keep their facts in prose come out wrong. Anything
 better has to read the description.
 
+It is also the example of both ways the runner reaches a tool: as a command, or as a
+service the records are posted to.
+
     python3 evaluate.py --command "python3 fields_only.py"
+
+    python3 fields_only.py --serve 8000
+    python3 evaluate.py --url http://127.0.0.1:8000
 """
 
+import argparse
 import json
 import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 
@@ -61,5 +69,45 @@ def extract(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+class _Answering(BaseHTTPRequestHandler):
+    """Answers each record posted to it, the way the runner's --url expects."""
+
+    def do_POST(self) -> None:  # pylint: disable=invalid-name
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            record = json.loads(self.rfile.read(length))
+        except ValueError:
+            self.send_error(400, "the body is not JSON")
+            return
+        body = json.dumps(extract(record)).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def make_server(port: int) -> HTTPServer:
+    """Return a server answering records posted to it, reachable from this machine only."""
+    return HTTPServer(("127.0.0.1", port), _Answering)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", maxsplit=1)[0])
+    parser.add_argument(
+        "--serve",
+        type=int,
+        metavar="PORT",
+        help="answer records posted to this port, rather than one on standard input",
+    )
+    options = parser.parse_args()
+    if options.serve is None:
+        json.dump(extract(json.load(sys.stdin)), sys.stdout)
+        return
+    with make_server(options.serve) as server:
+        print(f"Answering on http://127.0.0.1:{options.serve}", file=sys.stderr)
+        server.serve_forever()
+
+
 if __name__ == "__main__":
-    json.dump(extract(json.load(sys.stdin)), sys.stdout)
+    main()

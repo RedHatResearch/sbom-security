@@ -252,6 +252,20 @@ def test_a_tool_can_be_reached_over_http():
     assert totals["invented"] == 0
 
 
+def test_the_baseline_answers_the_same_as_a_service():
+    server = fields_only.make_server(0)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}"
+        served = evaluate.summary(evaluate.evaluate(DATASET, evaluate.url_tool(url)))
+    finally:
+        server.shutdown()
+        server.server_close()
+    command = evaluate.command_tool(f"{sys.executable} {EVALUATION / 'fields_only.py'}")
+
+    assert served == evaluate.summary(evaluate.evaluate(DATASET, command))
+
+
 def test_a_score_below_the_minimum_fails_the_run(tmp_path: Path, capsys):
     command = f"{sys.executable} {EVALUATION / 'fields_only.py'}"
     report = tmp_path / "report.json"
