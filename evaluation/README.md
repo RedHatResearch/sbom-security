@@ -58,17 +58,17 @@ the overall score; Package URL and versions are where extraction is hard.
 
 ### The baseline
 
-`fields_only.py`, on the first version of the dataset:
+`fields_only.py`, on the 40 cases of the dataset:
 
 | Field | Score |
 | ----- | ----- |
-| status | 23/23 |
+| status | 40/40 |
 | replaced_by | 0/1 |
-| affected | 17/22 |
-| purl | 8/22 |
-| versions | 7/22 |
-| cwe | 23/23 |
-| **Overall** | **78/113, 69%** |
+| affected | 29/40 |
+| purl | 14/40 |
+| versions | 14/40 |
+| cwe | 38/40 |
+| **Overall** | **135/201, 67%** |
 
 Few records name the package ecosystem outright, so the Package URL is mostly missed,
 and most keep their versions in prose. That is the gap a real extractor has to close.
