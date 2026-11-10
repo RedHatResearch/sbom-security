@@ -24,5 +24,5 @@
     "0.14.2": "eol"
   },
   "category": "edge",
-  "notes": "GitHub's template sentence is kept above real values. The values are the project's own, not the template's examples, so they are its policy."
+  "internal_note": "GitHub's template sentence is kept above real values. The values are the project's own, not the template's examples, so they are its policy."
 }

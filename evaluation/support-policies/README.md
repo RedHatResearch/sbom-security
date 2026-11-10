@@ -34,7 +34,7 @@ Shortened:
   },
   "expected": {"6.17.0": "supported", "5.8.0": "limited", "4.0.49": "eol"},
   "category": "edge",
-  "notes": "Rows are written 6.0.x and 5.0.x, but each gives the first release of a major line, ..."
+  "internal_note": "Rows are written 6.0.x and 5.0.x, but each gives the first release of a major line, ..."
 }
 ```
 
@@ -47,7 +47,7 @@ Shortened:
 | `reading` | The policy as a careful reader states it, in the rules the service uses. A model can write its rules differently and still be right, so only `kind` is compared with it directly |
 | `expected` | Versions of the package, each with what a report should give it: `supported`, `limited` or `eol`, followed by `until` and a date where support ends on one; `null` where the policy says nothing about that version |
 | `category` | `happy`, `unhappy` or `edge`; see below |
-| `notes` | Why the answer is what it is, where that is not obvious |
+| `internal_note` | Our note to reviewers: why the answer is what it is, where that is not obvious. Not part of the answer |
 
 ## How the answers were decided
 

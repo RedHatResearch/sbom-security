@@ -53,7 +53,7 @@ EXPRESS = {
     ],
     "cwe": ["CWE-79"],
     "category": "happy",
-    "notes": None,
+    "internal_note": None,
 }
 
 CURL = {
@@ -75,6 +75,7 @@ def test_every_case_is_well_formed(case: Path):
     document = json.loads((case / "document.json").read_text(encoding="utf-8"))
     expected = json.loads((case / "expected.json").read_text(encoding="utf-8"))
 
+    assert set(expected) == set(EXPRESS)
     assert expected["id"] == case.name == document["cveMetadata"]["cveId"]
     assert expected["status"] == document["cveMetadata"]["state"].lower()
     assert expected["category"] in ("happy", "unhappy", "edge")

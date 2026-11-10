@@ -34,5 +34,5 @@
     "3.52.5": "eol"
   },
   "category": "happy",
-  "notes": "End-of-life months are given for old lines; whether they are read as dates or not, those lines are unsupported."
+  "internal_note": "End-of-life months are given for old lines; whether they are read as dates or not, those lines are unsupported."
 }

@@ -29,5 +29,5 @@
     "7.15.0": "limited until 2027-06-30"
   },
   "category": "edge",
-  "notes": "The policy of the monorepo the package is published from. An hourglass with a date marks 7.x as winding down, which is limited support ending on that date. The note that only the last minor of a line is patched is not a rule of its own: support is reported per line, and a 7.15 user reaches the fix within 7.x."
+  "internal_note": "The policy of the monorepo the package is published from. An hourglass with a date marks 7.x as winding down, which is limited support ending on that date. The note that only the last minor of a line is patched is not a rule of its own: support is reported per line, and a 7.15 user reaches the fix within 7.x."
 }

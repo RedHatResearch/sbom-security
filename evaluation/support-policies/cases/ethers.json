@@ -31,5 +31,5 @@
     "2.2.6": "eol"
   },
   "category": "edge",
-  "notes": "Rows are written 6.0.x and 5.0.x, but each gives the first release of a major line, and the text says the effort goes to the latest major. A row stands for its line: read literally, 6.0.x would leave 6.17.0, the newest release, without support."
+  "internal_note": "Rows are written 6.0.x and 5.0.x, but each gives the first release of a major line, and the text says the effort goes to the latest major. A row stands for its line: read literally, 6.0.x would leave 6.17.0, the newest release, without support."
 }

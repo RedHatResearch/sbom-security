@@ -13,5 +13,5 @@
     "9.0.9": "eol"
   },
   "category": "happy",
-  "notes": "Shared by the owner across all their repositories: only the most recent version is supported. Backports that may happen are not a promise."
+  "internal_note": "Shared by the owner across all their repositories: only the most recent version is supported. Backports that may happen are not a promise."
 }

@@ -30,5 +30,5 @@
     "3.0.8": "eol"
   },
   "category": "happy",
-  "notes": "Minor lines, and a range for everything older."
+  "internal_note": "Minor lines, and a range for everything older."
 }

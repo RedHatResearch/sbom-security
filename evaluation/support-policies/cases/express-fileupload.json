@@ -31,5 +31,5 @@
     "1.2.0": "eol"
   },
   "category": "edge",
-  "notes": "The template sentence is kept, and the table stops at 1.3.x while the newest release is 1.5.2. The text says nothing about 1.4 and later, so neither does a report: reading the table as >=1.2.1 would state support nobody promised."
+  "internal_note": "The template sentence is kept, and the table stops at 1.3.x while the newest release is 1.5.2. The text says nothing about 1.4 and later, so neither does a report: reading the table as >=1.2.1 would state support nobody promised."
 }

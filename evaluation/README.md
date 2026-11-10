@@ -27,7 +27,7 @@ It can be written in anything, and is reached one of two ways:
 | `--command "..."` | the record on standard input | JSON on standard output |
 | `--url http://...` | the record as the body of a JSON `POST` | a JSON response |
 
-The answer has the shape of `expected.json`, without `category` and `notes`.
+The answer has the shape of `expected.json`, without `category` and `internal_note`.
 
 ```bash
 python3 evaluation/evaluate.py --command "python3 evaluation/fields_only.py"

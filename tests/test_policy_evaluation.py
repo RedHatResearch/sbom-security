@@ -51,7 +51,8 @@ def test_each_case_is_pinned_and_complete(path: Path):
     date.fromisoformat(case["date"])
     assert case["expected"], "a case checks at least one version"
     assert all(value is None or OUTCOME.fullmatch(value) for value in case["expected"].values())
-    assert case["notes"]
+    assert set(case) == set(CASE)
+    assert case["internal_note"]
 
 
 @pytest.mark.parametrize("path", CASES, ids=lambda path: path.stem)
@@ -142,7 +143,7 @@ CASE = {
     },
     "expected": {"3.0.4": "supported", "3.0.0": "eol"},
     "category": "happy",
-    "notes": "",
+    "internal_note": "",
 }
 TEXT_ADDRESS = f"https://raw.githubusercontent.com/pugjs/pug/{COMMIT}/SECURITY.md"
 POLICY_TEXT = """## Supported Versions

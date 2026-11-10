@@ -24,5 +24,5 @@
     "2.0.4": "eol"
   },
   "category": "happy",
-  "notes": "A caret range: 3.0.0 is in the 3.x line but not supported."
+  "internal_note": "A caret range: 3.0.0 is in the 3.x line but not supported."
 }

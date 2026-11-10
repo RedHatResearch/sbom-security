@@ -12,5 +12,5 @@
     "3.1.3": null
   },
   "category": "unhappy",
-  "notes": "The organisation's shared policy states supported versions of jQuery and jQuery UI. esprima belongs to the organisation, but the text says nothing about it."
+  "internal_note": "The organisation's shared policy states supported versions of jQuery and jQuery UI. esprima belongs to the organisation, but the text says nothing about it."
 }
