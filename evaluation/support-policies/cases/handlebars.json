@@ -29,6 +29,6 @@
     "4.6.0": "eol",
     "3.0.8": "eol"
   },
-  "category": "happy",
+  "category": "match",
   "internal_note": "Minor lines, and a range for everything older."
 }

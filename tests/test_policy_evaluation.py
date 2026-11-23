@@ -46,7 +46,7 @@ def test_each_case_is_pinned_and_complete(path: Path):
     case = case_from(path)
 
     assert PINNED.fullmatch(case["policy"]), "a policy is linked at a commit"
-    assert case["category"] in {"happy", "unhappy", "edge"}
+    assert case["category"] in {"match", "nonmatch", "edge"}
     assert case["reading"]["kind"] in KINDS
     date.fromisoformat(case["date"])
     assert case["expected"], "a case checks at least one version"
@@ -78,7 +78,7 @@ def test_reading_nothing_passes_only_the_cases_that_state_nothing():
 
 
 def test_the_cases_cover_every_category():
-    assert {case_from(path)["category"] for path in CASES} == {"happy", "unhappy", "edge"}
+    assert {case_from(path)["category"] for path in CASES} == {"match", "nonmatch", "edge"}
 
 
 def test_reads_the_text_of_a_file_shown_on_github():
@@ -142,7 +142,7 @@ CASE = {
         ],
     },
     "expected": {"3.0.4": "supported", "3.0.0": "eol"},
-    "category": "happy",
+    "category": "match",
     "internal_note": "",
 }
 TEXT_ADDRESS = f"https://raw.githubusercontent.com/pugjs/pug/{COMMIT}/SECURITY.md"

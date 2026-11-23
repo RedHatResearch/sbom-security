@@ -24,6 +24,6 @@
     "12.0.1": "eol",
     "11.0.1": "eol"
   },
-  "category": "happy",
+  "category": "match",
   "internal_note": "The table says Current and EoL rather than using GitHub's check marks."
 }

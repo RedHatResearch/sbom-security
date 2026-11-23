@@ -11,6 +11,6 @@
     "4.0.0": null,
     "2.2.0": null
   },
-  "category": "unhappy",
+  "category": "nonmatch",
   "internal_note": "Only says where to report a vulnerability, so it is never sent to the model."
 }

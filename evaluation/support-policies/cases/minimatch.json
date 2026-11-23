@@ -12,6 +12,6 @@
     "10.2.5": "eol",
     "9.0.9": "eol"
   },
-  "category": "happy",
+  "category": "match",
   "internal_note": "Shared by the owner across all their repositories: only the most recent version is supported. Backports that may happen are not a promise."
 }

@@ -46,7 +46,7 @@ Shortened:
 | `date` | The day the case is judged on, so that end dates compare the same way whenever it is run |
 | `reading` | The policy as a careful reader states it, in the rules the service uses. A model can write its rules differently and still be right, so only `kind` is compared with it directly |
 | `expected` | Versions of the package, each with what a report should give it: `supported`, `limited` or `eol`, followed by `until` and a date where support ends on one; `null` where the policy says nothing about that version |
-| `category` | `happy`, `unhappy` or `edge`; see below |
+| `category` | `match`, `nonmatch` or `edge`; see below |
 | `internal_note` | Our note to reviewers: why the answer is what it is, where that is not obvious. Not part of the answer |
 
 ## How the answers were decided
@@ -65,8 +65,8 @@ Shortened:
 
 | Category | Means |
 | -------- | ----- |
-| `happy` | A table, a range or a rule that says plainly which versions are supported |
-| `unhappy` | A policy that states nothing for the package: one about other products, one that only explains how to report, one that promises fixes without saying for which versions |
+| `match` | A policy that covers the package: a table, a range or a rule says plainly which versions are supported |
+| `nonmatch` | A policy that states nothing for the package: one about other products, one that only explains how to report, one that promises fixes without saying for which versions |
 | `edge` | A policy whose literal reading and plain reading differ, or that keeps GitHub's template wording around real values |
 
 ## What is not covered yet

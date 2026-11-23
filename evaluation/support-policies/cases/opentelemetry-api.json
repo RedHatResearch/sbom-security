@@ -13,6 +13,6 @@
     "1.8.0": "eol",
     "0.21.0": "eol"
   },
-  "category": "happy",
+  "category": "match",
   "internal_note": "Shared across the organisation: only the last minor version is supported."
 }

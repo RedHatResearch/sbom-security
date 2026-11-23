@@ -23,6 +23,6 @@
     "2.0.0": "eol",
     "1.8.0": "eol"
   },
-  "category": "happy",
+  "category": "match",
   "internal_note": "Ranges rather than lines."
 }

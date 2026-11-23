@@ -52,7 +52,7 @@ EXPRESS = {
         }
     ],
     "cwe": ["CWE-79"],
-    "category": "happy",
+    "category": "match",
     "internal_note": None,
 }
 
@@ -78,7 +78,7 @@ def test_every_case_is_well_formed(case: Path):
     assert set(expected) == set(EXPRESS)
     assert expected["id"] == case.name == document["cveMetadata"]["cveId"]
     assert expected["status"] == document["cveMetadata"]["state"].lower()
-    assert expected["category"] in ("happy", "unhappy", "edge")
+    assert expected["category"] in ("match", "nonmatch", "edge")
     for entry in expected["affected"]:
         assert set(entry) == {"product", "purl", "ranges", "versions"}
         for item in entry["ranges"]:
