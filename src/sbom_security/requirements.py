@@ -9,6 +9,9 @@ requirements file, a local path, a URL, an editable install — name something t
 cannot resolve, and are reported rather than passed over.
 """
 
+import re
+from collections.abc import Iterator
+
 from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement as PackagingRequirement
 
@@ -16,6 +19,10 @@ from sbom_security.models import PYPI, Requirement
 
 # Lines beginning with these are directives rather than dependencies.
 DIRECTIVES = ("-", "--")
+
+# What may follow a requirement on its line, such as the hashes pip-compile writes. It
+# says how to install the package, not which one is meant.
+_OPTIONS = re.compile(r"\s-{1,2}[A-Za-z].*")
 
 
 def parse_requirements_txt(content: str) -> tuple[tuple[Requirement, ...], tuple[str, ...]]:
@@ -27,7 +34,7 @@ def parse_requirements_txt(content: str) -> tuple[tuple[Requirement, ...], tuple
     understood: list[Requirement] = []
     ignored: list[str] = []
 
-    for raw in content.splitlines():
+    for raw in _logical_lines(content):
         line = _strip_comment(raw).strip()
         if not line:
             continue
@@ -35,13 +42,30 @@ def parse_requirements_txt(content: str) -> tuple[tuple[Requirement, ...], tuple
             ignored.append(line)
             continue
 
-        parsed = _parse_line(line)
+        parsed = _parse_line(_OPTIONS.sub("", line))
         if parsed is None:
             ignored.append(line)
         else:
             understood.append(parsed)
 
     return tuple(understood), tuple(ignored)
+
+
+def _logical_lines(content: str) -> Iterator[str]:
+    """Yield the lines of a file, joining those that a backslash continues.
+
+    As in pip, a comment ends a continued line even if it ends in a backslash itself.
+    """
+    begun = ""
+    for line in content.splitlines():
+        comment = line.lstrip().startswith("#")
+        if line.endswith("\\") and not comment:
+            begun += line[:-1]
+            continue
+        yield f"{begun} {line}" if comment else begun + line
+        begun = ""
+    if begun:
+        yield begun
 
 
 def _strip_comment(line: str) -> str:
