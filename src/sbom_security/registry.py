@@ -16,6 +16,7 @@ from urllib.parse import quote
 
 import httpx
 
+from sbom_security.http import Client
 from sbom_security.models import PackageRef, Sbom
 from sbom_security.purl import to_purl
 
@@ -57,7 +58,7 @@ class DepsDevClient:
 
     async def direct_dependencies(self, ref: PackageRef) -> Sbom:
         """Return the direct dependencies of one package version, at exact versions."""
-        async with httpx.AsyncClient(
+        async with Client(
             timeout=self.timeout, transport=self.transport
         ) as client:
             response = await client.get(self.dependencies_url(ref))

@@ -6,6 +6,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from sbom_security import http
 from sbom_security.cache import ExpiringCache
 from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.image import ScanFailed, SyftScanner, parse_reference
@@ -35,6 +36,12 @@ RECORDED_IMAGES = {
     "docker.io/library/node": "node-22-alpine.syft.json",
     "docker.io/bkimminich/juice-shop": "juice-shop.syft.json",
 }
+
+
+@pytest.fixture(autouse=True)
+def fixture_no_pauses(monkeypatch: pytest.MonkeyPatch):
+    """Repeat failed requests at once, so that no test waits."""
+    monkeypatch.setattr(http, "PAUSES", (0.0,) * len(http.PAUSES))
 
 
 def serve_express_lifecycle(request: httpx.Request) -> httpx.Response:

@@ -9,6 +9,8 @@ from typing import Any
 
 import httpx
 
+from sbom_security.http import Client
+
 RAW_HOST = "https://raw.githubusercontent.com"
 LOCKFILE = "package-lock.json"
 MANIFEST = "package.json"
@@ -75,7 +77,7 @@ class GitHubSource:
     async def _get(
         self, owner: str, repo: str, ref: str, filename: str
     ) -> httpx.Response:
-        async with httpx.AsyncClient(
+        async with Client(
             timeout=self.timeout, transport=self.transport, follow_redirects=True
         ) as client:
             response = await client.get(self.file_url(owner, repo, ref, filename))

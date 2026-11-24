@@ -32,6 +32,7 @@ import httpx
 from nodesemver import satisfies
 
 from sbom_security.cache import ExpiringCache, Stored
+from sbom_security.http import Client
 from sbom_security.models import (
     END_OF_LIFE,
     EXTRACTED,
@@ -259,7 +260,7 @@ class PolicyFinder:
     transport: httpx.AsyncBaseTransport | None = None
 
     def client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(
+        return Client(
             timeout=self.timeout, transport=self.transport, follow_redirects=True
         )
 

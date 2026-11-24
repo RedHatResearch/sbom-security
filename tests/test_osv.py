@@ -322,3 +322,42 @@ async def test_an_advisory_answering_several_repositories_is_reported_once():
     assert [vulnerability.id for vulnerability in found[OPENSSL_LIBS.purl]] == [
         "RHSA-2024:0310"
     ]
+
+
+async def test_reads_every_page_of_a_long_answer():
+    pages = {
+        None: {"vulns": [{"id": "A-1"}, {"id": "A-2"}], "next_page_token": "second"},
+        "second": {"vulns": [{"id": "A-3"}], "next_page_token": "third"},
+        "third": {"vulns": [{"id": "A-4"}]},
+    }
+    batches: list[list[tuple[str, str | None]]] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path != "/v1/querybatch":
+            return httpx.Response(200, json={"id": request.url.path.rsplit("/", 1)[-1]})
+        queries = json.loads(request.content)["queries"]
+        batches.append([(q["package"]["purl"], q.get("page_token")) for q in queries])
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    pages[q.get("page_token")]
+                    if q["package"]["purl"] == EXPRESS.purl
+                    else {"vulns": [{"id": "B-1"}]}
+                    for q in queries
+                ]
+            },
+        )
+
+    found = await OsvClient(transport=httpx.MockTransport(handle)).find_vulnerabilities(
+        [ACCEPTS, EXPRESS]
+    )
+
+    assert [v.id for v in found[EXPRESS.purl]] == ["A-1", "A-2", "A-3", "A-4"]
+    assert [v.id for v in found[ACCEPTS.purl]] == ["B-1"]
+    # Only the answer that goes on is asked about again.
+    assert batches == [
+        [(ACCEPTS.purl, None), (EXPRESS.purl, None)],
+        [(EXPRESS.purl, "second")],
+        [(EXPRESS.purl, "third")],
+    ]

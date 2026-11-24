@@ -26,6 +26,7 @@ import httpx
 from packageurl import PackageURL
 
 from sbom_security import distribution
+from sbom_security.http import Client
 from sbom_security.models import Dependency, Vulnerability
 
 OSV_API = "https://api.osv.dev"
@@ -80,7 +81,7 @@ class OsvClient:
             for index, dependency in enumerate(dependencies)
             for query in _queries_for(dependency)
         ]
-        async with httpx.AsyncClient(
+        async with Client(
             timeout=self.timeout, transport=self.transport
         ) as client:
             ids_per_query = await self._query_ids(client, [query for _, query in asked])
@@ -111,31 +112,49 @@ class OsvClient:
         self, client: httpx.AsyncClient, queries: Sequence[_Query]
     ) -> list[list[str]]:
         """Return the vulnerability identifiers answering each query, in the same order."""
-        chunks = list(_chunked(queries, MAX_QUERIES_PER_BATCH))
-        responses = await asyncio.gather(
-            *(self._query_chunk(client, chunk) for chunk in chunks)
-        )
-
-        ids: list[list[str]] = []
-        for chunk, results in zip(chunks, responses, strict=True):
-            # Results are positional. A short response would silently attribute one
-            # package's vulnerabilities to another, so refuse to continue instead.
-            if len(results) != len(chunk):
-                raise RuntimeError(
-                    f"OSV returned {len(results)} results for {len(chunk)} queries"
-                )
-            ids.extend(
-                [vuln["id"] for vuln in result.get("vulns") or []] for result in results
+        answers = await asyncio.gather(
+            *(
+                self._query_chunk(client, chunk)
+                for chunk in _chunked(queries, MAX_QUERIES_PER_BATCH)
             )
-        return ids
+        )
+        return [ids for answer in answers for ids in answer]
 
     async def _query_chunk(
         self, client: httpx.AsyncClient, chunk: Sequence[_Query]
+    ) -> list[list[str]]:
+        """Ask one batch of queries, until every answer is whole.
+
+        OSV gives a long answer, such as the Linux kernel's, in pages: an answer that
+        goes on carries a token, and the query repeated with it gives the next page.
+        """
+        ids: list[list[str]] = [[] for _ in chunk]
+        asked = list(enumerate(query.body for query in chunk))
+        while asked:
+            results = await self._post_batch(client, [body for _, body in asked])
+            unfinished = []
+            for (index, body), result in zip(asked, results, strict=True):
+                ids[index].extend(vuln["id"] for vuln in result.get("vulns") or [])
+                if token := result.get("next_page_token"):
+                    unfinished.append((index, {**body, "page_token": token}))
+            asked = unfinished
+        return ids
+
+    async def _post_batch(
+        self, client: httpx.AsyncClient, queries: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        payload = {"queries": [query.body for query in chunk]}
-        response = await client.post(f"{self.base_url}/v1/querybatch", json=payload)
+        response = await client.post(
+            f"{self.base_url}/v1/querybatch", json={"queries": queries}
+        )
         response.raise_for_status()
-        return response.json().get("results", [])
+        results = response.json().get("results", [])
+        # Results are positional. A short response would silently attribute one
+        # package's vulnerabilities to another, so refuse to continue instead.
+        if len(results) != len(queries):
+            raise RuntimeError(
+                f"OSV returned {len(results)} results for {len(queries)} queries"
+            )
+        return results
 
     async def _fetch_records(
         self, client: httpx.AsyncClient, vuln_ids: set[str]

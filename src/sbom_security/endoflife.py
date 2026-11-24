@@ -24,6 +24,7 @@ from packaging.version import InvalidVersion, Version
 
 from sbom_security.cache import ExpiringCache, Stored
 from sbom_security.distribution import PACKAGE_TYPES as DISTRIBUTION_TYPES
+from sbom_security.http import Client
 from sbom_security.models import (
     ACTIVE,
     END_OF_LIFE,
@@ -86,7 +87,7 @@ class EndOfLifeClient:
             return {}
 
         now = self.clock()
-        async with httpx.AsyncClient(
+        async with Client(
             timeout=self.timeout, transport=self.transport
         ) as client:
             index = await self._fetch(client, PACKAGE_URLS, now)

@@ -10,6 +10,7 @@ import asyncio
 
 import httpx
 
+from sbom_security.http import Client
 from sbom_security.models import PackageRef, Requirement
 
 MAX_CONCURRENT_LOOKUPS = 10
@@ -55,7 +56,7 @@ class VersionResolver:
             return (), ()
 
         limit = asyncio.Semaphore(MAX_CONCURRENT_LOOKUPS)
-        async with httpx.AsyncClient(
+        async with Client(
             timeout=self.timeout, transport=self.transport
         ) as client:
             outcomes = await asyncio.gather(
