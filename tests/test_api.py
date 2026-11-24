@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sbom_security.api import (
     app,
     get_cache,
+    get_callbacks,
     get_github_source,
     get_npm_registry,
     get_osv_client,
@@ -24,6 +25,7 @@ from sbom_security.api import (
     get_support_source,
 )
 from sbom_security.cache import SbomCache
+from sbom_security.callback import CallbackSender
 from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.github import GitHubSource
 from sbom_security.image import ScanTimedOut, SyftScanner
@@ -169,6 +171,11 @@ def serve_graph(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json=GRAPHS[key])
 
 
+async def resolve_host(host: str, _port: int) -> tuple[str, ...]:
+    """Resolve one name to a public host, and every other to one inside."""
+    return ("93.184.216.34",) if host == "example.test" else ("172.18.0.2",)
+
+
 class FakeQueue:
     """Stands in for the work queue, recording what was submitted."""
 
@@ -233,6 +240,7 @@ def fixture_client(
     app.dependency_overrides[get_cache] = lambda: SbomCache(tmp_path)
     app.dependency_overrides[get_support_source] = lambda: support_source
     app.dependency_overrides[get_scanner] = lambda: image_scanner
+    app.dependency_overrides[get_callbacks] = lambda: CallbackSender(resolve=resolve_host)
     app.dependency_overrides[get_queue] = lambda: queue
     yield TestClient(app)
     app.dependency_overrides.clear()
@@ -569,6 +577,22 @@ def test_a_callback_url_is_passed_to_the_worker(client, queue):
     )
 
     assert queue.submitted[0][3] == "https://example.test/done"
+
+
+@pytest.mark.parametrize(
+    ("path", "asked"),
+    [
+        ("/jobs/npm-package", {"name": "express", "version": "4.18.0"}),
+        ("/jobs/image", {"reference": "node:22-alpine"}),
+    ],
+)
+def test_a_callback_into_the_services_own_network_is_refused(client, queue, path, asked):
+    response = client.post(path, params={**asked, "callback_url": "http://redis:6379/"})
+
+    assert response.status_code == 400
+    assert "public internet" in response.json()["detail"]
+    assert queue.submitted == []
+    assert queue.submitted_images == []
 
 
 def test_a_finished_job_hands_back_its_report(client, queue):

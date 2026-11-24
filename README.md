@@ -291,6 +291,10 @@ To be told when it finishes rather than asking, pass an address to post the repo
 curl -X POST 'http://127.0.0.1:8010/jobs/npm-package?name=express&version=4.18.0&callback_url=https://example.com/done'
 ```
 
+The address has to lead to a host on the public internet, so that a caller cannot make
+the service connect into its own network. Set `SBOM_CALLBACK_HOSTS` to a comma-separated
+list of hosts to accept as well, on the API and on the workers.
+
 ## Running it
 
 **Everything together** — API, a worker and Redis, on port 8010:

@@ -14,6 +14,7 @@ import httpx
 import pytest
 
 from sbom_security.cache import ExpiringCache, SbomCache
+from sbom_security.callback import CallbackSender
 from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.image import ScanFailed, SyftScanner
 from sbom_security.jobs import (
@@ -90,6 +91,11 @@ async def no_images(_arguments: Sequence[str], _timeout: float) -> bytes:
     raise ScanFailed("no registry is reachable in these tests")
 
 
+async def public_host(_host: str, _port: int) -> tuple[str, ...]:
+    """Resolve every name to a host on the public internet."""
+    return ("93.184.216.34",)
+
+
 class Callbacks:
     """Records what was delivered, and can be told to reject it."""
 
@@ -116,7 +122,10 @@ def sources_for(
             transport=httpx.MockTransport(knows_no_project),
         ),
         scanner=scanner or SyftScanner(run=no_images),
-        transport=httpx.MockTransport(callbacks) if callbacks else None,
+        callbacks=CallbackSender(
+            resolve=public_host,
+            transport=httpx.MockTransport(callbacks or Callbacks()),
+        ),
     )
 
 

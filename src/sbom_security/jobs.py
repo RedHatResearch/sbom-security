@@ -6,13 +6,12 @@ than something threaded through the logic.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import httpx
-
 from sbom_security.cache import ExpiringCache, SbomCache
+from sbom_security.callback import CallbackSender, hosts_from_environment
 from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.image import SyftScanner, registries_from_environment
 from sbom_security.models import PackageRef, Report
@@ -72,7 +71,7 @@ class Sources:
     osv: OsvClient
     support: SupportSources
     scanner: SyftScanner
-    transport: httpx.AsyncBaseTransport | None = None
+    callbacks: CallbackSender = field(default_factory=CallbackSender)
 
     @classmethod
     def default(cls, pending: Pending | None = None) -> "Sources":
@@ -90,6 +89,7 @@ class Sources:
                 pending=pending,
             ),
             scanner=SyftScanner(registries=registries_from_environment()),
+            callbacks=CallbackSender(hosts=hosts_from_environment()),
         )
 
 
@@ -179,23 +179,5 @@ async def _deliver(
     """Return a finished report as plain data, posting it on if an address was given."""
     payload = as_dict(report)
     if callback_url:
-        await _notify(callback_url, payload, sources.transport)
+        await sources.callbacks.send(callback_url, payload)
     return payload
-
-
-async def _notify(
-    callback_url: str,
-    payload: dict[str, Any],
-    transport: httpx.AsyncBaseTransport | None,
-) -> None:
-    """Post a finished report to the address the caller gave.
-
-    A caller that cannot be reached must not discard work that has already been done,
-    so a failed delivery is passed over and the result stays available to collect.
-    """
-    try:
-        async with httpx.AsyncClient(timeout=10.0, transport=transport) as client:
-            response = await client.post(callback_url, json=payload)
-            response.raise_for_status()
-    except httpx.HTTPError:
-        pass

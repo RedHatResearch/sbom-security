@@ -19,6 +19,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, s
 
 from sbom_security import __version__
 from sbom_security.cache import ExpiringCache, SbomCache
+from sbom_security.callback import CallbackRefused, CallbackSender, hosts_from_environment
 from sbom_security.endoflife import EndOfLifeClient
 from sbom_security.github import DEFAULT_REF, FileNotFound, GitHubSource, LockfileNotFound
 from sbom_security.image import (
@@ -165,6 +166,11 @@ def get_support_source(request: Request) -> SupportSources:
 def get_scanner() -> SyftScanner:
     """Provide the container image scanner, so tests can substitute their own."""
     return SyftScanner(registries=registries_from_environment())
+
+
+def get_callbacks() -> CallbackSender:
+    """Provide the delivery of finished reports, so tests can substitute their own."""
+    return CallbackSender(hosts=hosts_from_environment())
 
 
 @dataclass(frozen=True)
@@ -361,6 +367,7 @@ async def submit_npm_package(
     name: str,
     queue: Annotated[ArqQueue, Depends(get_queue)],
     sources: Annotated[Sources, Depends(get_sources)],
+    callbacks: Annotated[CallbackSender, Depends(get_callbacks)],
     response: Response,
     version: str | None = None,
     depth: Depth = DEFAULT_DEPTH,
@@ -377,8 +384,9 @@ async def submit_npm_package(
     returns the identifier already in hand rather than queueing it a second time.
 
     Give ``callback_url`` to be told when it is done; otherwise collect the result from
-    the returned identifier.
+    the returned identifier. It has to lead to a host on the public internet.
     """
+    await _check_callback(callback_url, callbacks)
     ref = await _resolve_requested_version(name, version, sources)
     identifier = await queue.submit(ref.name, ref.version, depth, callback_url)
     response.headers["Location"] = f"/jobs/{identifier}"
@@ -485,6 +493,16 @@ async def report_for_npm_package(
         raise HTTPException(status_code=404, detail=str(missing)) from missing
 
 
+async def _check_callback(address: str | None, callbacks: CallbackSender) -> None:
+    """Refuse work whose report would be posted where it must not be, with the reason."""
+    if not address:
+        return
+    try:
+        await callbacks.check(address)
+    except CallbackRefused as refused:
+        raise HTTPException(status_code=400, detail=str(refused)) from refused
+
+
 def _checked_image(reference: str, sources: Sources) -> str:
     """Spell out an image reference in full, or refuse it with the reason."""
     try:
@@ -528,6 +546,7 @@ async def submit_container_image(
     reference: str,
     queue: Annotated[ArqQueue, Depends(get_queue)],
     sources: Annotated[Sources, Depends(get_sources)],
+    callbacks: Annotated[CallbackSender, Depends(get_callbacks)],
     response: Response,
     callback_url: str | None = None,
 ) -> JobState:
@@ -539,6 +558,7 @@ async def submit_container_image(
     report on one is reused only for as long as the queue keeps it, an hour by default.
     """
     checked = _checked_image(reference, sources)
+    await _check_callback(callback_url, callbacks)
     identifier = await queue.submit_image(checked, callback_url)
     response.headers["Location"] = f"/jobs/{identifier}"
     return await queue.state(identifier)
