@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from sbom_security.cache import SbomCache
-from sbom_security.models import PackageRef
+from sbom_security.models import PYPI, PackageRef
 from sbom_security.registry import DepsDevClient, PackageNotFound
 from sbom_security.resolver import resolve_declared, resolve_tree, sbom_for
 
@@ -268,3 +268,22 @@ async def test_the_cache_is_shared_across_walks(tmp_path: Path):
     await resolve_tree(EXPRESS, cache, CHAIN.client(), depth=9)
 
     assert len(CHAIN.requested) == before
+
+
+async def test_a_python_tree_is_the_same_when_it_comes_from_the_cache(tmp_path: Path):
+    cache = SbomCache(tmp_path)
+    flask = PackageRef("flask", "3.0.0", PYPI)
+    registry = FakeRegistry(
+        {
+            "flask@3.0.0": graph("flask", "3.0.0", [("jinja2", "3.1.6")]),
+            "jinja2@3.1.6": graph("jinja2", "3.1.6", [("markupsafe", "3.0.2")]),
+            "markupsafe@3.0.2": graph("markupsafe", "3.0.2", []),
+        }
+    )
+
+    first = await resolve_declared([flask], cache, registry.client())
+    again = await resolve_declared([flask], cache, registry.client())
+
+    assert {ref.ecosystem for ref in first.packages} == {PYPI}
+    assert again == first
+    assert len(registry.requested) == 3

@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+from packageurl import PackageURL
+
 from sbom_security.models import PackageRef, Sbom
 
 # Long enough that a report rarely waits for a fetch, short enough that an announced
@@ -81,10 +83,12 @@ class SbomCache:
             return None
 
         record = json.loads(path.read_text(encoding="utf-8"))
+        # A package depends on others of its own ecosystem, which its Package URL names.
+        ecosystem = PackageURL.from_string(record["purl"]).type
         return Sbom(
             purl=record["purl"],
             dependencies=tuple(
-                PackageRef(name=item["name"], version=item["version"])
+                PackageRef(name=item["name"], version=item["version"], ecosystem=ecosystem)
                 for item in record["dependencies"]
             ),
         )

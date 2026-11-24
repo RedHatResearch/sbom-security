@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sbom_security.cache import ExpiringCache, SbomCache, Stored
-from sbom_security.models import PackageRef, Sbom
+from sbom_security.models import PYPI, PackageRef, Sbom
 
 EXPRESS = Sbom(
     purl="pkg:npm/express@4.18.0",
@@ -18,6 +18,16 @@ def test_stores_and_returns_an_sbom(tmp_path: Path):
     cache.put(EXPRESS)
 
     assert cache.get(EXPRESS.purl) == EXPRESS
+
+
+def test_dependencies_come_back_in_their_own_ecosystem(tmp_path: Path):
+    # An npm package can share a Python package's name, and is not the same software.
+    cache = SbomCache(tmp_path)
+    flask = Sbom("pkg:pypi/flask@3.0.0", (PackageRef("click", "8.1.7", PYPI),))
+
+    cache.put(flask)
+
+    assert cache.get(flask.purl) == flask
 
 
 def test_reports_a_missing_entry_as_absent(tmp_path: Path):
